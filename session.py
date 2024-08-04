@@ -7,6 +7,7 @@ add_message and get_last_n_messages.
 This session class will be an attribute in the BaseAgent class from the agent_manager.py snippet.
 Every agent will have its own session to keep track of the conversation with the user.
 """
+import json
 import os
 from typing import Dict, List
 
@@ -20,17 +21,20 @@ class Session:
     def __init__(self, agent_type: str):
         self.agent_id = agent_type
         self.messages: List[Dict[str, str]] = []
-        self.file_path = f"{agent_type}.txt"
+        self.file_path = f"{agent_type}.json"
         self.load_messages()
 
     def load_messages(self):
         if os.path.exists(self.file_path):
             with open(self.file_path, "r") as file:
-                self.messages = file.read().splitlines()
+                # all of the lines are json strings. load json
+                self.messages = [json.loads(line) for line in file.read().splitlines()]
 
     def save_messages(self):
         with open(self.file_path, "w") as file:
             for message in self.messages:
+                # convert the dictionary to a json string
+                message = json.dumps(message)
                 file.write(f"{message}\n")
 
     def add_message(self, message: str, sender: str):
