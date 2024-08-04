@@ -214,8 +214,8 @@ class BaseAgent:
             )
 
             # convert response_message ChatCompletionMessage to dict
-            response = response.choices[0].message.model_dump()
-            session_messages.append(response)            
+            response_message = response.choices[0].message.model_dump()
+            session_messages.append(response_message)            
 
         # add the response to the session
         self._session.update_and_replace_messages(session_messages)
