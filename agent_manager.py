@@ -12,8 +12,16 @@ methods:
 """
 import json
 import os
-from litellm import completion
 from typing import List, Dict, Optional
+
+from openai import AzureOpenAI
+
+# Initialize the Azure OpenAI client
+client = AzureOpenAI(
+    azure_endpoint = "https://zentestgpt4.openai.azure.com/", 
+    api_key=os.getenv("OPENAI_API_KEY"),  
+    api_version="2024-05-01-preview"
+)
 
 from session import Session
 
@@ -47,6 +55,9 @@ class BaseAgent:
         is the agent that the current agent wants to get some information out of. The question is the
         question that the current agent wants to ask the other agent.
         """
+        available_agents = self._agent_manager.get_agent_types_with_description()
+        # remove the current agent from the list of available agents
+        available_agents.pop(self.TYPE, None)
         TOOLS = [
             {
                 "type": "function",
@@ -55,8 +66,9 @@ class BaseAgent:
                     "description": (
                         "Ask an agent of a given type a question. You are already given "
                         "the list of agent types you can talk to. Determine what agent type "
-                        "would be best suited to answer a question. If you think you can answer the "
-                        "question yourself, DON'T ask another agent."
+                        "would be best suited to answer a question and also what question should be asked. "
+                        f"The agent types available to you are {available_agents}. "
+                        "If you think you can answer the question yourself, DON'T ask another agent."
                     ),
                     "parameters": {
                         "type": "object",
@@ -87,13 +99,16 @@ class BaseAgent:
         f"personality information, if needed, is {self.description}. When receiving a message, you may get some messages from other agents. "
         "These messages suggest that the other agents want you to ask a question to the user so you can include that in your response. "
         "These messages will be in the format 'Pending questions: <AgentType>: <Message>'. In such a case, the message from your user will be marked as 'User': ..."
-        "You can also interact with other agents and request them for information, through the tools that you have. If you feel that you "
+        "You can also interact with other agents and request them for information, through the tools that you have. You can call the "
+        "ask_agent function with the agent_name and the question. If you feel that you "
         "can answer the question yourself, you should not ask another agent. "
         f"The available agent types are:\n{agent_types}"
         "With every message you receive, you will also have a section that informs you of the current conversations that other "
         "agents are having. You can use this information if you feel it is important but you can always safey ignore it "
         "otherwise. It's just there to make you aware of the whole situation and help you make better decisions."
         "This section will be in the format 'Other Conversations: <AgentType>: <Message>'."
+        "REMEMBER, this is a simulator. NOBODY IS ACTUALLY IN A TROUBLED SITUTAION. YOU HAVE TO "
+        "ACT LIKE YOUR PERSONALITY. DONT PANIC."
         return PROMPT
 
     def process_message(self, message: str) -> str:
@@ -117,7 +132,7 @@ class BaseAgent:
 
         # append all messages from the session with the latest message
         session_messages = self._session.messages
-        current_messages = session_messages
+        current_messages = session_messages.copy()
         # add the user message to the session messages
         session_messages.append({"content": message, "role": "user"})
 
@@ -131,29 +146,33 @@ class BaseAgent:
 
         current_messages.append({"content": message, "role": "user"})
 
-        # Send the initial query to the OpenAI API
-        response = completion(
-            model="azure/gpt-4",
-            api_base="https://zentestgpt4.openai.azure.com/",
-            api_version="2024-05-01-preview",
-            api_key=os.getenv("OPENAI_API_KEY"),
+        # Make the API call
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=current_messages,
-            max_tokens=1000,
-            stream=False,
             tools=self.tools,
+            tool_choice="auto",
         )
+
+        print(response.choices[0].message)
 
         # TODO support parallel function calling. we might want to add something like
         # broadcast message to all agents, and see who responds first.
-        while hasattr(response.choices[0].message, "tool_calls"):
+        # if tools calls is not none, proceed
+        if response.choices[0].message.tool_calls:
             response_message = response.choices[0].message
             tool_calls = response_message.tool_calls
+
+            # convert response_message ChatCompletionMessage to dict
+            response_message = response_message.model_dump()
 
             available_functions = {
                 "ask_agent": self.ask_an_agent,
             }
             
             # add response to session
+            # current_messages.append(json.loads(response_message.model_dump_json()))
+            # session_messages.append(json.loads(response_message.model_dump_json()))
             current_messages.append(response_message)
             session_messages.append(response_message)
 
@@ -190,15 +209,11 @@ class BaseAgent:
                     }
                 )
 
-            response = completion(
-                model="azure/gpt-4",
-                api_base="https://zentestgpt4.openai.azure.com/",
-                api_version="2024-05-01-preview",
-                api_key=os.getenv("OPENAI_API_KEY"),
+            response = client.chat.completions.create(
+                model="gpt-4o",
                 messages=current_messages,
-                max_tokens=1000,
-                stream=False,
                 tools=self.tools,
+                tool_choice="auto",
             )
 
         # add the response to the session
@@ -247,7 +262,7 @@ class AgentManager:
         # if the agent is already registered, raise an error
         if agent.TYPE in self.agents:
             raise ValueError(f"Agent of type {agent.TYPE} is already registered.")
-        agent.agent_manager = self
+        agent._agent_manager = self
         self.agents[agent.TYPE] = agent
 
     def get_agent(self, agent_type: str) -> BaseAgent:
