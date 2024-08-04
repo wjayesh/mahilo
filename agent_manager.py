@@ -102,6 +102,8 @@ class BaseAgent:
         "You can also interact with other agents and request them for information, through the tools that you have. You can call the "
         "ask_agent function with the agent_name and the question. If you feel that you "
         "can answer the question yourself, you should not ask another agent. "
+        "YOU DONT HAVE TO ALWAYS CALL OTHER AGENTS. TALK TO YOUR USERS when the need be. Extract information from them too "
+        "If you feel there's something you want to know and the user might help get that information, ask them."
         f"The available agent types are:\n{agent_types}"
         "With every message you receive, you will also have a section that informs you of the current conversations that other "
         "agents are having. You can use this information if you feel it is important but you can always safey ignore it "
@@ -159,23 +161,18 @@ class BaseAgent:
         # TODO support parallel function calling. we might want to add something like
         # broadcast message to all agents, and see who responds first.
         # if tools calls is not none, proceed
-        if response.choices[0].message.tool_calls:
-            response_message = response.choices[0].message
-            tool_calls = response_message.tool_calls
+        response_message = response.choices[0].message
+        tool_calls = response_message.tool_calls
 
-            # convert response_message ChatCompletionMessage to dict
-            response_message = response_message.model_dump()
-
+        # convert response_message ChatCompletionMessage to dict
+        response_message = response_message.model_dump()
+        current_messages.append(response_message)
+        session_messages.append(response_message)
+        if tool_calls:
             available_functions = {
                 "ask_agent": self.ask_an_agent,
             }
             
-            # add response to session
-            # current_messages.append(json.loads(response_message.model_dump_json()))
-            # session_messages.append(json.loads(response_message.model_dump_json()))
-            current_messages.append(response_message)
-            session_messages.append(response_message)
-
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
                 function_to_call = available_functions[function_name]
@@ -215,6 +212,10 @@ class BaseAgent:
                 tools=self.tools,
                 tool_choice="auto",
             )
+
+            # convert response_message ChatCompletionMessage to dict
+            response = response.choices[0].message.model_dump()
+            session_messages.append(response)            
 
         # add the response to the session
         self._session.update_and_replace_messages(session_messages)
