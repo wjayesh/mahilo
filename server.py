@@ -1,73 +1,67 @@
-from fastapi import FastAPI, WebSocket
-from pydantic import BaseModel
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from typing import Dict
+import uvicorn
 import asyncio
 import uuid
 
+from agent_manager import AgentManager, BaseAgent
+
 app = FastAPI()
+agent_manager = AgentManager()
 
-class Message(BaseModel):
-    content: str
+# Store WebSocket connections
+websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
 
-class Agent:
-    def __init__(self, name):
-        self.name = name
-        self.conversation = []
+# Initialize the main agent
+main_agent = BaseAgent("MainAgent", "The primary agent that users interact with")
+agent_manager.register_agent(main_agent)
+main_agent.activate()
 
-    async def process_message(self, message):
-        # Simulate AI processing
-        await asyncio.sleep(1)
-        return f"{self.name} received: {message}"
+@app.post("/ask")
+async def ask_main_agent(question: str):
+    response = main_agent.process_message(question)
+    return JSONResponse(content=response)
 
-class Dispatcher(Agent):
-    def __init__(self):
-        super().__init__("Dispatcher")
-        self.active_agents = {}
-
-    async def process_message(self, message):
-        response = await super().process_message(message)
-        if "activate" in message.lower():
-            new_agent = self.activate_new_agent(message)
-            return f"{response}\nActivated new agent: {new_agent.name}"
-        return response
-
-    def activate_new_agent(self, message):
-        if "police" in message.lower():
-            new_agent = Agent("Police")
-        elif "ambulance" in message.lower():
-            new_agent = Agent("Ambulance")
-        else:
-            new_agent = Agent("Generic")
-        
-        agent_id = str(uuid.uuid4())
-        self.active_agents[agent_id] = new_agent
-        return new_agent
-
-dispatcher = Dispatcher()
-
-@app.post("/dispatch/")
-async def dispatch_message(message: Message):
-    # this is where mt agent comes in 
-    response = await dispatcher.process_message(message.content)
-    return {"response": response}
-
-@app.websocket("/agent/{agent_id}")
-async def agent_websocket(websocket: WebSocket, agent_id: str):
-    # you check if the agent is active and only then respond
-    # otherwise, say the agent is not available.
-    
+@app.websocket("/ws/{agent_type}")
+async def websocket_endpoint(websocket: WebSocket, agent_type: str):
     await websocket.accept()
-    if agent_id not in dispatcher.active_agents:
-        await websocket.send_text("Invalid agent ID")
-        await websocket.close()
-        return
-
-    agent = dispatcher.active_agents[agent_id]
-    await websocket.send_text(f"Connected to {agent.name}")
+    
+    # Generate a unique ID for this connection
+    connection_id = str(uuid.uuid4())
+    
+    if agent_type not in websocket_connections:
+        websocket_connections[agent_type] = {}
+    websocket_connections[agent_type][connection_id] = websocket
 
     try:
-        while True:
-            message = await websocket.receive_text()
-            response = await agent.process_message(message)
-            await websocket.send_text(response)
-    except:
-        dispatcher.active_agents.pop(agent_id, None)
+        agent = agent_manager.get_agent(agent_type)
+        if agent and agent.is_active():
+            while True:
+                data = await websocket.receive_text()
+                response = agent.process_message(data)
+                await websocket.send_text(response["response"])
+        else:
+            await websocket.send_text(f"Agent {agent_type} is not active.")
+    except WebSocketDisconnect:
+        del websocket_connections[agent_type][connection_id]
+        if not websocket_connections[agent_type]:
+            del websocket_connections[agent_type]
+
+@app.on_event("startup")
+async def startup_event():
+    # Start a background task to handle inter-agent communication
+    asyncio.create_task(handle_inter_agent_communication())
+
+async def handle_inter_agent_communication():
+    while True:
+        for agent in agent_manager.get_all_agents():
+            if agent.is_active() and agent._queue:
+                message = agent._queue.pop(0)
+                if agent.TYPE in websocket_connections:
+                    for ws in websocket_connections[agent.TYPE].values():
+                        await ws.send_text(f"Agent {agent.TYPE}: {message}")
+        await asyncio.sleep(1)  # Check every second
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
