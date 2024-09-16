@@ -27,27 +27,32 @@ class ServerManager:
 
         @self.app.websocket("/ws/{agent_type}")
         async def websocket_endpoint(websocket: WebSocket, agent_type: str):
+            print(f"Received WebSocket connection request for agent type: {agent_type}")
             await websocket.accept()
             
             connection_id = str(uuid.uuid4())
             
             if agent_type not in self.websocket_connections:
-                self.websocket_connections[agent_type] = {}
+                print(f"Creating new entry for agent type: {agent_type}")
+                self.websocket_connections[agent_type] = {}            
             self.websocket_connections[agent_type][connection_id] = websocket
 
             try:
                 agent = self.agent_manager.get_agent(agent_type)
-                if agent and agent.is_active():
-                    while True:
-                        data = await websocket.receive_text()
-                        response = agent.process_message(data)
-                        await websocket.send_text(response["response"])
-                else:
-                    await websocket.send_text(f"Agent {agent_type} is not active.")
+                print(f"Agent retrieved: {agent}")
+                while True:
+                    data = await websocket.receive_text()
+                    print(f"Received message: {data}")
+                    response = agent.process_message(data)
+                    await websocket.send_text(response["response"])
             except WebSocketDisconnect:
+                print(f"WebSocket disconnected for agent type: {agent_type}")
                 del self.websocket_connections[agent_type][connection_id]
                 if not self.websocket_connections[agent_type]:
+                    print(f"No connections left for agent type: {agent_type}")
                     del self.websocket_connections[agent_type]
+            except Exception as e:
+                print(f"Error in websocket_endpoint: {str(e)}")
 
         @self.app.on_event("startup")
         async def startup_event():
@@ -60,6 +65,8 @@ class ServerManager:
                     message = agent._queue.pop(0)
                     if agent.TYPE in self.websocket_connections:
                         for ws in self.websocket_connections[agent.TYPE].values():
+                            # print all the keys in self.websocket_connections
+                            print(f"Keys in websocket_connections: {self.websocket_connections.keys()}")
                             await ws.send_text(f"Agent {agent.TYPE}: {message}")
             await asyncio.sleep(1)
 
