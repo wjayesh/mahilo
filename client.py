@@ -1,4 +1,6 @@
 import asyncio
+
+import click
 import websockets
 import requests
 from typing import Dict, Optional
@@ -11,7 +13,9 @@ class Client:
 
     async def connect(self):
         if self.agent_type:
-            self.websocket = await websockets.connect(f"{self.base_url}/ws/{self.agent_type}")
+            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_type}"
+            print(f"Connecting to {websocket_url}")
+            self.websocket = await websockets.connect(websocket_url)
             asyncio.create_task(self._listen())
         else:
             print("Connected to main agent.")
@@ -30,7 +34,7 @@ class Client:
                 await self.connect()
             await self.websocket.send(message)
         else:
-            response = requests.post(f"{self.base_url}/ask", json={"question": message})
+            response = requests.post(f"{self.base_url}/ask", params={"question": message})
             print(f"Main agent response: {response.json()['response']}")
             return response.json()
 
@@ -51,6 +55,16 @@ async def run_client(client: Client):
                 print(f"New agent activated: {agent_type}")
     await client.close()
 
+@click.command()
+@click.option('--url', default='http://localhost:8000', help='Server URL')
+@click.option('--agent-type', default=None, help='Agent type to connect to')
+def cli(url: str, agent_type: Optional[str]):
+    """CLI for connecting to the multi-agent server."""
+    client = Client(url, agent_type)
+    asyncio.run(run_client(client))
+
+if __name__ == "__main__":
+    cli()
 
 # Usage example:
 # asyncio.run(run_client(Client("http://localhost:8000")))
