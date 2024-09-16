@@ -220,8 +220,14 @@ class BaseAgent:
         # add the response to the session
         self._session.update_and_replace_messages(session_messages)
 
-        return response.choices[0].message.content
-    
+        # After processing, return the response and the list of all current agents that are active
+        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.TYPE != self.TYPE]
+        
+        return {
+            "response": response.choices[0].message.content,
+            "activated_agents": [agent.TYPE for agent in activated_agents]
+        }
+
     def add_message_to_queue(self, message: str, sender: str) -> None:
         """Add a message to the agent's queue."""
         self._queue.append(f"{sender}: {message}")
@@ -257,6 +263,7 @@ class AgentManager:
     """
     def __init__(self):
         self.agents: Dict[str, BaseAgent] = {}
+        self.main_agent: BaseAgent = None
 
     def register_agent(self, agent: BaseAgent) -> None:
         """Register an agent with the AgentManager."""
@@ -269,6 +276,14 @@ class AgentManager:
     def get_agent(self, agent_type: str) -> BaseAgent:
         """Return the agent of the given type."""
         return self.agents.get(agent_type)
+
+    def set_main_agent(self, agent_type: str):
+        if agent_type not in self.agents:
+            raise ValueError(f"Agent of type {agent_type} is not registered.")
+        self.main_agent = self.agents[agent_type]
+
+    def get_main_agent(self) -> BaseAgent:
+        return self.main_agent
 
     def get_all_agents(self) -> List[BaseAgent]:
         """Return a list of all registered agents."""
