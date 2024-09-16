@@ -45,7 +45,11 @@ class Client:
 async def run_client(client: Client):
     await client.connect()
     while True:
-        message = input(f"Enter message for {client.agent_type or 'main agent'} (or 'quit' to exit): ")
+        message = await asyncio.get_event_loop().run_in_executor(
+            None, 
+            input,
+            f"Enter message for {client.agent_type or 'main agent'} (or 'quit' to exit): "
+        )
         if message.lower() == 'quit':
             break
         response = await client.send_message(message)
