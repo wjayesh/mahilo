@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from typing import Dict
@@ -16,14 +17,29 @@ class ServerManager:
         self._setup_routes()
 
     def _setup_routes(self):
-        @self.app.post("/ask")
-        async def ask_main_agent(question: str):
-            main_agent = self.agent_manager.get_main_agent()
-            # if main_agent is not active, activate it
-            if not main_agent.is_active():
-                main_agent.activate()
-            response = main_agent.process_message(question)
-            return JSONResponse(content=response)
+        @self.app.websocket("/ws/main")
+        async def main_agent_websocket(websocket: WebSocket):
+            await websocket.accept()
+            connection_id = str(uuid.uuid4())
+            
+            if "main" not in self.websocket_connections:
+                self.websocket_connections["main"] = {}
+            self.websocket_connections["main"][connection_id] = websocket
+
+            try:
+                main_agent = self.agent_manager.get_main_agent()
+                while True:
+                    data = await websocket.receive_text()
+                    if not main_agent.is_active():
+                        main_agent.activate()
+                    response = main_agent.process_message(data)
+                    await websocket.send_text(json.dumps(response))
+            except WebSocketDisconnect:
+                del self.websocket_connections["main"][connection_id]
+                if not self.websocket_connections["main"]:
+                    del self.websocket_connections["main"]
+            except Exception as e:
+                print(f"Error in main_agent_websocket: {str(e)}")
 
         @self.app.websocket("/ws/{agent_type}")
         async def websocket_endpoint(websocket: WebSocket, agent_type: str):
@@ -43,6 +59,11 @@ class ServerManager:
                 while True:
                     data = await websocket.receive_text()
                     print(f"Received message: {data}")
+                    # if the agent is not active, ignore the message
+                    if not agent.is_active():
+                        print(f"Agent {agent_type} is not active")
+                        await websocket.send_text(f"Agent {agent_type} is not active.")
+                        continue
                     response = agent.process_message(data)
                     await websocket.send_text(response["response"])
             except WebSocketDisconnect:
@@ -63,10 +84,15 @@ class ServerManager:
             for agent in self.agent_manager.get_all_agents():
                 if agent.is_active() and agent._queue:
                     message = agent._queue.pop(0)
-                    if agent.TYPE in self.websocket_connections:
-                        for ws in self.websocket_connections[agent.TYPE].values():
-                            # print all the keys in self.websocket_connections
-                            print(f"Keys in websocket_connections: {self.websocket_connections.keys()}")
+                    # if the agent is the main agent, the type is "main"
+                    main_agent = self.agent_manager.get_main_agent()
+                    if agent.TYPE == main_agent.TYPE:
+                        agent_type = "main"
+                    else:
+                        agent_type = agent.TYPE
+                    if agent_type in self.websocket_connections:
+                        for ws in self.websocket_connections[agent_type].values():
+                            print("Sending message to: ", ws)
                             await ws.send_text(f"Agent {agent.TYPE}: {message}")
             await asyncio.sleep(1)
 
