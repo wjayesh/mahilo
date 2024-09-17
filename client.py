@@ -12,13 +12,10 @@ class Client:
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
 
     async def connect(self):
-        if self.agent_type:
-            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_type}"
-            print(f"Connecting to {websocket_url}")
-            self.websocket = await websockets.connect(websocket_url)
-            asyncio.create_task(self._listen())
-        else:
-            print("Connected to main agent.")
+        websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_type or 'main'}"
+        print(f"Connecting to {websocket_url}")
+        self.websocket = await websockets.connect(websocket_url)
+        asyncio.create_task(self._listen())
 
     async def _listen(self):
         try:
@@ -29,14 +26,10 @@ class Client:
             print(f"Connection to {self.agent_type} closed")
 
     async def send_message(self, message: str):
-        if self.agent_type:
-            if not self.websocket:
-                await self.connect()
+        if self.websocket:
             await self.websocket.send(message)
         else:
-            response = requests.post(f"{self.base_url}/ask", params={"question": message})
-            print(f"Main agent response: {response.json()['response']}")
-            return response.json()
+            raise Exception("WebSocket connection not established")
 
     async def close(self):
         if self.websocket:
