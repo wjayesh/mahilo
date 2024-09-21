@@ -1,0 +1,4 @@
+{"content": "yeah sure, i can come at 3 PM today. is the customer free then", "role": "user"}
+{"content": null, "role": "assistant", "function_call": null, "tool_calls": [{"id": "call_wsYLvyRHTWioOvex6zmKAbgG", "function": {"arguments": "{\"agent_type\":\"dispatcher\",\"question\":\"The mold specialist has availability at 3 PM today. Is the customer free at that time for a visit?\"}", "name": "chat_with_agent"}, "type": "function"}]}
+{"tool_call_id": "call_wsYLvyRHTWioOvex6zmKAbgG", "role": "tool", "name": "chat_with_agent", "content": "I have put the question 'The mold specialist has availability at 3 PM today. Is the customer free at that time for a visit?' in the queue for the agent of type dispatcher.You will hear back soon."}
+{"content": "I have asked the dispatcher if the customer is available for a visit at 3 PM today. I will get back to you as soon as I have a response.", "role": "assistant", "function_call": null, "tool_calls": null}
