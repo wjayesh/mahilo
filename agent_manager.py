@@ -39,11 +39,18 @@ class BaseAgent:
     _queue: List[str]
     _session: Optional[Session] = None
     description: str = None
+    can_contact: List[str] = None
 
-    def __init__(self, type: str, description: str = None):
+    def __init__(self, type: str, description: str = None, can_contact: List[str] = None):
         self.TYPE = type
         self._queue = []
         self.description = description
+        self.can_contact = can_contact or []
+
+    # make a function that returns the list of agents with their descriptions that this agent can contact
+    def get_contactable_agents_with_description(self) -> Dict[str, str]:
+        all_available_agents_with_description = self._agent_manager.get_agent_types_with_description()
+        return {agent_type: description for agent_type, description in all_available_agents_with_description.items() if agent_type not in self.can_contact and agent_type != self.TYPE}
 
     @property
     def tools(self) -> str:
@@ -55,9 +62,7 @@ class BaseAgent:
         is the agent that the current agent wants to get some information out of. The question is the
         question that the current agent wants to ask the other agent.
         """
-        available_agents = self._agent_manager.get_agent_types_with_description()
-        # remove the current agent from the list of available agents
-        available_agents.pop(self.TYPE, None)
+        available_agents = self.get_contactable_agents_with_description()
         TOOLS = [
             {
                 "type": "function",
@@ -91,8 +96,7 @@ class BaseAgent:
     
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
-        agent_types_with_description = self._agent_manager.get_agent_types_with_description()
-        agent_types = "\n".join([f"{agent_type}: {description}" for agent_type, description in agent_types_with_description.items()])
+        available_agents = self.get_contactable_agents_with_description()
 
         PROMPT = f"This is a multi-agent system. You are an agent of type {self.TYPE}. "
         "You will talk to a user and answer their questions based on your personality that goes with your type. Some additional "
@@ -104,7 +108,7 @@ class BaseAgent:
         "can answer the question yourself, you should not ask another agent. "
         "YOU DONT HAVE TO ALWAYS CALL OTHER AGENTS. TALK TO YOUR USERS when the need be. Extract information from them too "
         "If you feel there's something you want to know and the user might help get that information, ask them."
-        f"The available agent types are:\n{agent_types}"
+        f"The available agent types are:\n{available_agents}"
         "With every message you receive, you will also have a section that informs you of the current conversations that other "
         "agents are having. You can use this information if you feel it is important but you can always safey ignore it "
         "otherwise. It's just there to make you aware of the whole situation and help you make better decisions."
@@ -304,7 +308,10 @@ class AgentManager:
 
     def get_agent_types_with_description(self) -> Dict[str, str]:
         """Return a list of all registered agent types with their descriptions."""
-        return {agent.TYPE: agent.description for agent in self.agents.values()}
+        # for the description, we only want the short description
+        # the short description is the first line of the description
+        # only return the agents that this agent
+        return {agent.TYPE: agent.description.split("\n")[0] for agent in self.agents.values()}
     
     # get last 3 messages from all agents' sessions except the current agent.
     def get_agent_messages(self, agent_type: str) -> str:
