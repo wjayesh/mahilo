@@ -60,6 +60,8 @@ More information on the features can be found in the [Detailed Features](#detail
    ```
    python client.py --url http://localhost:8000 --agent-type your_agent_type
    ```
+   > [!TIP]
+   > You dont have to specify the URL if you want to connect to the default server.
 
    You can connect to the same server using multiple clients to test the system with multiple users. This is useful for testing the system in a real-world scenario where multiple agents need to coordinate their actions.
 
