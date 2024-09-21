@@ -39,18 +39,18 @@ class BaseAgent:
     _queue: List[str]
     _session: Optional[Session] = None
     description: str = None
-    can_contact: List[str] = None
+    can_contact: List[str] = []
 
-    def __init__(self, type: str, description: str = None, can_contact: List[str] = None):
+    def __init__(self, type: str, description: str = None, can_contact: List[str] = []):
         self.TYPE = type
         self._queue = []
         self.description = description
-        self.can_contact = can_contact or []
+        self.can_contact = can_contact
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
         all_available_agents_with_description = self._agent_manager.get_agent_types_with_description()
-        return {agent_type: description for agent_type, description in all_available_agents_with_description.items() if agent_type not in self.can_contact and agent_type != self.TYPE}
+        return {agent_type: description for agent_type, description in all_available_agents_with_description.items() if agent_type in self.can_contact and agent_type != self.TYPE}
 
     @property
     def tools(self) -> str:
@@ -267,7 +267,6 @@ class AgentManager:
     """
     def __init__(self):
         self.agents: Dict[str, BaseAgent] = {}
-        self.main_agent: BaseAgent = None
 
     def register_agent(self, agent: BaseAgent) -> None:
         """Register an agent with the AgentManager."""
@@ -275,19 +274,18 @@ class AgentManager:
         if agent.TYPE in self.agents:
             raise ValueError(f"Agent of type {agent.TYPE} is already registered.")
         agent._agent_manager = self
+        # if the can_contact is empty, set it to all agents
+        if not agent.can_contact:
+            agent.can_contact = self.get_all_agent_types()
         self.agents[agent.TYPE] = agent
 
     def get_agent(self, agent_type: str) -> BaseAgent:
         """Return the agent of the given type."""
         return self.agents.get(agent_type)
-
-    def set_main_agent(self, agent_type: str):
-        if agent_type not in self.agents:
-            raise ValueError(f"Agent of type {agent_type} is not registered.")
-        self.main_agent = self.agents[agent_type]
-
-    def get_main_agent(self) -> BaseAgent:
-        return self.main_agent
+    
+    def get_all_agent_types(self) -> List[str]:
+        """Return a list of all registered agent types."""
+        return list(self.agents.keys())
 
     def get_all_agents(self) -> List[BaseAgent]:
         """Return a list of all registered agents."""

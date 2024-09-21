@@ -54,7 +54,7 @@ async def run_client(client: Client):
 
 @click.command()
 @click.option('--url', default='http://localhost:8000', help='Server URL')
-@click.option('--agent-type', default=None, help='Agent type to connect to')
+@click.option('--agent-type', required=True, help='Agent type to connect to')
 def cli(url: str, agent_type: Optional[str]):
     """CLI for connecting to the multi-agent server."""
     client = Client(url, agent_type)
