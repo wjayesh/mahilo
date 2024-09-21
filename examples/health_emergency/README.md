@@ -43,13 +43,14 @@ An image showing how the agents that talk to the humans add to their productivit
    ```
    python client.py --url http://localhost:8000 --agent-type medical_advisor
    ```
-   > [!TIP]
-   > You dont have to specify the URL if you want to connect to the default server.
 
    You can connect to the same server using multiple clients to interact with different agents in the system. For example:
    ```
    python client.py --url http://localhost:8000 --agent-type logistics_coordinator
    python client.py --url http://localhost:8000 --agent-type public_communications_director
    ```
+
+> [!TIP]
+> You dont have to specify the URL if you want to connect to the default server.
 
 This setup allows you to simulate a real-world scenario where multiple agents need to coordinate their actions in response to a health emergency.
