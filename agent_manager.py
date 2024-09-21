@@ -99,41 +99,34 @@ class BaseAgent:
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
         available_agents = self.get_contactable_agents_with_description()
+        print("Available Agents: ", available_agents)
 
         PROMPT = f"""
-        You are an AI agent of type {self.TYPE} in a multi-agent system. Keep your conversations as consice as possible. Your role:
+        You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise. 
 
-        1. Personality: Embody the characteristics of a {self.TYPE}. Additional details: {self.description}
+        1. User interaction:
+        - You are in conversation with a user. You should just output what you want to know from the user directly.
+        - All agent communications and internal monologues don't need to be returned. Just return what you want to know from the user.
+        - You should not always use the chat_with_agent tool. Only use it when you need to ask the another agent a question or give it information.
+        - Strictly assume the role you are given in the description. Don't assume roles. Listen to what your user says and follow it. 
 
-        2. User Interaction:
-           - Engage with your user, answering questions and extracting information.
+        2. Inter-agent Communication:
+        - The Pending questions are the questions that you have received from other agents. You have to respond to them.
+        - Use the 'chat_with_agent' function to interact with other agents when necessary.
 
-        3. Inter-agent Communication:
-           - You may receive messages from other agents in the format:
-             'Pending questions: <AgentType>: <Message>'
-           - Incorporate these into your response to the user when relevant.
-           - User messages will be clearly marked as 'User: ...'
+        3. Available Agents:
+        {available_agents}
 
-        4. Tools:
-           - Use the 'chat_with_agent' function to interact with other agents only when necessary.
-           - Prioritize answering questions yourself if possible.
+        4. Contextual Awareness:
+        - 'Other Conversations: <AgentType>: <Message>' provide context but don't require direct responses.
+        - IMPORTANT: These are separate conversations. Do not respond to them directly.
+        - Use this information to enhance your understanding of the overall situation.
 
-        5. Available Agents:
-           {available_agents}
+        5. Key Points:
+        - This is a simulation. There are no real emergencies.
+        - Focus on your specific role and user interactions.
 
-        6. Contextual Awareness:
-           - You'll receive updates on other agents' conversations:
-             'Other Conversations: <AgentType>: <Message>'
-           - IMPORTANT: These are separate conversations. Do not respond to them directly.
-           - Use this information only to enhance your understanding of the overall situation.
-           - You can safely ignore this information if it's not relevant to your current conversation.
-
-        7. Key Points:
-           - This is a simulation. There are no real emergencies.
-           - Proactively seek information from your users when needed.
-           - Focus on your own conversation and user interactions.
-
-        Remember: Your primary goal is to assist users effectively while using contextual information wisely.
+        Refer to your description for specific details about your role and responsibilities.
         """
         return PROMPT
 
@@ -177,9 +170,6 @@ class BaseAgent:
 
         current_messages.append({"content": self.prompt_message(), "role": "system"})
         current_messages.append({"content": message_full, "role": "user"})
-
-        print("Agent Type: ", self.TYPE)
-        print("Current Messages: ", current_messages)
 
         # Make the API call
         response = client.chat.completions.create(
