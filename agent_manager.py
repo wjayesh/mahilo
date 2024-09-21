@@ -58,8 +58,8 @@ class BaseAgent:
         
         The output is a JSON string in the OpenAI schema for tools.
         This base agent has the following tools:
-        - ask_agent function that can take in an agent type and a question as input. The agent type
-        is the agent that the current agent wants to get some information out of. The question is the
+        - chat_with_agent function that can take in an agent type and a question as input. The agent type
+        is the agent that the current agent wants to chat with. The question is the
         question that the current agent wants to ask the other agent.
         """
         available_agents = self.get_contactable_agents_with_description()
@@ -67,11 +67,13 @@ class BaseAgent:
             {
                 "type": "function",
                 "function": {
-                    "name": "ask_agent",
+                    "name": "chat_with_agent",
                     "description": (
-                        "Ask an agent of a given type a question. You are already given "
+                        "Chat with an agent of a given type. You are already given "
                         "the list of agent types you can talk to. Determine what agent type "
                         "would be best suited to answer a question and also what question should be asked. "
+                        "You should also proactively share any information with the agent that might be relevant "
+                        "to the conversation you are having with them. This will help the other agent be in the loop. "
                         f"The agent types available to you are {available_agents}. "
                         "If you think you can answer the question yourself, DON'T ask another agent."
                     ),
@@ -104,7 +106,7 @@ class BaseAgent:
         "These messages suggest that the other agents want you to ask a question to the user so you can include that in your response. "
         "These messages will be in the format 'Pending questions: <AgentType>: <Message>'. In such a case, the message from your user will be marked as 'User': ..."
         "You can also interact with other agents and request them for information, through the tools that you have. You can call the "
-        "ask_agent function with the agent_name and the question. If you feel that you "
+        "chat_with_agent function with the agent_name and the question. If you feel that you "
         "can answer the question yourself, you should not ask another agent. "
         "YOU DONT HAVE TO ALWAYS CALL OTHER AGENTS. TALK TO YOUR USERS when the need be. Extract information from them too "
         "If you feel there's something you want to know and the user might help get that information, ask them."
@@ -117,8 +119,10 @@ class BaseAgent:
         "ACT LIKE YOUR PERSONALITY. DONT PANIC."
         return PROMPT
 
-    def process_message(self, message: str) -> str:
-        """Process a message and return a response.
+    def process_message(self, message: str = None) -> Dict[str, str]:
+        """Process a message and return a response. 
+        
+        If message is not provided, it will use the last message from the queue.
 
         This function should
         - check if there are any messages in the queue
@@ -140,7 +144,8 @@ class BaseAgent:
         session_messages = self._session.messages
         current_messages = session_messages.copy()
         # add the user message to the session messages
-        session_messages.append({"content": message, "role": "user"})
+        if message:
+            session_messages.append({"content": message, "role": "user"})
 
         queue_message = ""
         if self._queue:
@@ -148,9 +153,14 @@ class BaseAgent:
 
         # get the last 3 messages from all other agents' sessions
         other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE)
-        message = f"{queue_message}\n{other_agent_messages}\n User: {message}"
+        message_full = f"{queue_message}\n{other_agent_messages}"
+        if message:
+            message_full += f"\n User: {message}"
 
-        current_messages.append({"content": message, "role": "user"})
+        current_messages.append({"content": message_full, "role": "user"})
+
+        print("Agent Type: ", self.TYPE)
+        print("Current Messages: ", current_messages)
 
         # Make the API call
         response = client.chat.completions.create(
@@ -174,7 +184,7 @@ class BaseAgent:
         session_messages.append(response_message)
         if tool_calls:
             available_functions = {
-                "ask_agent": self.ask_an_agent,
+                "chat_with_agent": self.chat_with_agent,
             }
             
             for tool_call in tool_calls:
@@ -245,8 +255,8 @@ class BaseAgent:
         """Activate the agent."""
         self._session = Session(self.TYPE)
 
-    def ask_an_agent(self, agent_type: str, question: str) -> str:
-        """Ask the agent of the given type a question."""
+    def chat_with_agent(self, agent_type: str, question: str) -> str:
+        """Chat with the agent of the given type."""
         agent = self._agent_manager.get_agent(agent_type)
         # if agent is not active, activate it
         if not agent.is_active():
