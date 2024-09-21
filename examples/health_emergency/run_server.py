@@ -1,4 +1,4 @@
-from agent_manager import AgentManager, BaseAgent
+from agent_manager import AgentManager
 from server import ServerManager
 from templates.peer2peer.logistics_coordinator import LogisticsCoordinator
 from templates.peer2peer.medical_advisor import MedicalAdvisor
