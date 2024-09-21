@@ -3,11 +3,11 @@
 This is a multi-agent system designed to handle health emergencies. It demonstrates the peer-to-peer agent communication pattern where multiple specialized agents collaborate to address a health crisis. The system includes a Medical Advisor, a Logistics Coordinator, and a Public Communications Director, all working together to manage various aspects of the emergency response.
 
 An image showing the a three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency.
-![Health Emergency](./assets/health_emergency1.png)
+![Health Emergency](../../assets/health_emergency1.png)
 
 An image showing how the agents that talk to the humans add to their productivity by doing tasks like fleshing out details of the tasks at hand, asking questions to other agents to clarify problems and as in this screenshot, drafting a message to the public for the public communication director to send out, by itself, looking at the context of the conversation.
 
-![Health Emergency](./assets/health_emergency2.png)
+![Health Emergency](../../assets/health_emergency2.png)
 
 ## Getting Started
 

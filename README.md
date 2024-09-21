@@ -9,7 +9,7 @@ Agents are aware of other agents in the system and can decide to talk to one or 
 ![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](./assets/health_emergency1.png)
 Above is an image that shows a three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents simultaneously to coordinate the response to the emergency.
 
-TL;DR:
+### TL;DR:
 - Easy-to-extend BaseAgent class to create your own agents
 - WebSocket-based real-time communication with multiple users simultaneously
 - Flexible communication patterns: peer-to-peer and hierarchical (or centralized)
