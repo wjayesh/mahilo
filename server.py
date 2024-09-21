@@ -59,12 +59,12 @@ class ServerManager:
         while True:
             for agent in self.agent_manager.get_all_agents():
                 if agent.is_active() and agent._queue:
-                    response = agent.process_message()
+                    message = agent._queue.pop(0)
                     agent_type = agent.TYPE
                     if agent_type in self.websocket_connections:
                         for ws in self.websocket_connections[agent_type].values():
                             print("Sending message to: ", ws)
-                            await ws.send_text(response["response"])
+                            await ws.send_text(message)
             await asyncio.sleep(1)
 
     def run(self, host: str = "0.0.0.0", port: int = 8000):
