@@ -72,6 +72,8 @@ class BaseAgent:
                         "Chat with an agent of a given type. You are already given "
                         "the list of agent types you can talk to. Determine what agent type "
                         "would be best suited to answer a question and also what question should be asked. "
+                        "The question will be sent as is to the agent's user so frame it in a way that some human can read "
+                        "and answer directly. It won't be answered by the agent, it will be answered by the user."
                         "You should also proactively share any information with the agent that might be relevant "
                         "to the conversation you are having with them. This will help the other agent be in the loop. "
                         f"The agent types available to you are {available_agents}. "
@@ -86,7 +88,7 @@ class BaseAgent:
                             },
                             "question": {
                                 "type": "string",
-                                "description": "The question to ask the agent.",
+                                "description": "The question to ask the agent. This question will be sent directly to the agent's user, frame it in a way that the user can answer directly.",
                             },
                         },
                     }
