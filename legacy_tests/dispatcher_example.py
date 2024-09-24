@@ -1,5 +1,6 @@
-from agent_manager import AgentManager, BaseAgent
-from server import ServerManager
+from mahilo.agent_manager import AgentManager
+from mahilo.agent import BaseAgent
+from mahilo.server import ServerManager
 
 manager = AgentManager()
 
