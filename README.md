@@ -6,7 +6,7 @@ Agents are aware of other agents in the system and can decide to talk to one or 
 
 ## Features
 
-![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](./assets/health_emergency1.png)
+![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](https://github.com/wjayesh/mahilo/blob/main/assets/health_emergency1.png?raw=true)
 Above is an image that shows a three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents simultaneously to coordinate the response to the emergency.
 
 ### TL;DR:
