@@ -2,8 +2,7 @@ import asyncio
 
 import click
 import websockets
-import requests
-from typing import Dict, Optional
+from typing import Optional
 
 class Client:
     def __init__(self, url: str, agent_type: Optional[str] = None):

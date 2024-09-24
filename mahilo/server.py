@@ -1,12 +1,13 @@
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
 from typing import Dict
 import uvicorn
 import asyncio
 import uuid
 
-from agent_manager import AgentManager, BaseAgent
+## TODO add instructor
+
+from .agent_manager import AgentManager
 
 class ServerManager:
     def __init__(self, agent_manager: AgentManager):
@@ -14,6 +15,7 @@ class ServerManager:
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
 
+        self.agent_manager.populate_can_contact_for_agents()
         self._setup_routes()
 
     def _setup_routes(self):
@@ -64,6 +66,7 @@ class ServerManager:
                     if agent_type in self.websocket_connections:
                         for ws in self.websocket_connections[agent_type].values():
                             print("Sending message to: ", ws)
+                            ## TODO log to file
                             await ws.send_text(message)
             await asyncio.sleep(1)
 
