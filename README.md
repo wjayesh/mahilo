@@ -1,4 +1,4 @@
-# Mahilo:Multi-Agent with Human-in-the-Loop System Framework
+# Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
 This project provides a flexible framework for defining and creating multi-agent systems that can each interact with humans while sharing relevant context internally. It allows developers to easily set up complex agent networks for various applications, from customer service to emergency response simulations.
 
