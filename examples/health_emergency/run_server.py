@@ -1,8 +1,8 @@
-from agent_manager import AgentManager
-from server import ServerManager
-from templates.peer2peer.logistics_coordinator import LogisticsCoordinator
-from templates.peer2peer.medical_advisor import MedicalAdvisor
-from templates.peer2peer.public_communications_director import PublicCommunicationsDirector
+from mahilo.agent_manager import AgentManager
+from mahilo.server import ServerManager
+from mahilo.templates.peer2peer.logistics_coordinator import LogisticsCoordinator
+from mahilo.templates.peer2peer.medical_advisor import MedicalAdvisor
+from mahilo.templates.peer2peer.public_communications_director import PublicCommunicationsDirector
 
 # initialize the agent manager
 manager = AgentManager()

@@ -1,8 +1,8 @@
-from agent_manager import AgentManager
-from server import ServerManager
-from templates.centralized.dispatcher import Dispatcher
-from templates.centralized.plumber import Plumber
-from templates.centralized.mold_specialist import MoldSpecialist
+from mahilo.agent_manager import AgentManager
+from mahilo.server import ServerManager
+from mahilo.templates.centralized.dispatcher import Dispatcher
+from mahilo.templates.centralized.plumber import Plumber
+from mahilo.templates.centralized.mold_specialist import MoldSpecialist
 
 # initialize the agent manager
 manager = AgentManager()
