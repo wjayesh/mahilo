@@ -2,13 +2,11 @@ import json
 import os
 from typing import TYPE_CHECKING, List, Dict, Optional
 
-from openai import AzureOpenAI
+from openai import OpenAI
 
-# Initialize the Azure OpenAI client
-client = AzureOpenAI(
-    azure_endpoint = "https://zentestgpt4.openai.azure.com/", 
-    api_key=os.getenv("OPENAI_API_KEY"),  
-    api_version="2024-05-01-preview"
+# Initialize the OpenAI client
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
 )
 
 if TYPE_CHECKING:
