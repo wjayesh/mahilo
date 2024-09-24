@@ -1,2 +1,20 @@
 # python cache
 __pycache__
+
+# Build artifacts
+dist/
+*.egg-info/
+build/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Other common files to ignore
+.DS_Store
+*.log
