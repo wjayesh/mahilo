@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mahilo"
-version = "0.1.0"
+version = "0.1.1"
 description = " A flexible framework for creating multi-agent systems that can each interact with humans while sharing relevant context internally."
 authors = [{name = "Jayesh Sharma", email = "wjayesh@outlook.com"}]
 readme = "README.md"

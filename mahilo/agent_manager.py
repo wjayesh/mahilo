@@ -47,7 +47,7 @@ class AgentManager:
         """Return a list of all registered agent types with their descriptions."""
         # for the description, we only want the short description
         # the short description first 0 words
-        return {agent.TYPE: " ".join(agent.description.split(" ")[:0]) for agent in self.agents.values()}
+        return {agent.TYPE: agent.short_description for agent in self.agents.values()}
     
     # get last 3 messages from all agents' sessions except the current agent.
     def get_agent_messages(self, agent_type: str) -> str:

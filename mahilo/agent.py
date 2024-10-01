@@ -27,13 +27,15 @@ class BaseAgent:
     _queue: List[str]
     _session: Optional[Session] = None
     description: str = None
+    short_description: str = None
     can_contact: List[str] = []
 
-    def __init__(self, type: str, description: str = None, can_contact: List[str] = []):
+    def __init__(self, type: str, description: str = None, can_contact: List[str] = [], short_description: str = None):
         self.TYPE = type
         self._queue = []
         self.description = description
         self.can_contact = can_contact
+        self.short_description = short_description
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
