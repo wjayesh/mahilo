@@ -1,12 +1,19 @@
+import base64
 import json
 import os
 from typing import TYPE_CHECKING, List, Dict, Optional
 
-from openai import OpenAI
+from aiohttp import ClientWebSocketResponse
+from fastapi import WebSocket, WebSocketDisconnect
+from openai import AzureOpenAI
+from websockets import WebSocketClientProtocol
+
 
 # Initialize the OpenAI client
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
+client = AzureOpenAI(
+    azure_endpoint = "https://zentestgpt4.openai.azure.com/", 
+    api_key=os.getenv("OPENAI_API_KEY"),  
+    api_version="2024-05-01-preview"
 )
 
 if TYPE_CHECKING:
@@ -242,6 +249,103 @@ class BaseAgent:
             "response": response.choices[0].message.content,
             "activated_agents": [agent.TYPE for agent in activated_agents]
         }
+    
+    async def _send_session_update(self, openai_ws: WebSocketClientProtocol) -> None:
+        """Send the session update to the OpenAI WebSocket."""
+        session_update = {
+            "event_id": f"event_{self.TYPE}_{id(self)}",
+            "type": "session.update",
+            "session": {
+                "modalities": ["text", "audio"],
+                "instructions": self.prompt_message(),
+                "voice": "alloy",
+                "input_audio_format": "pcm16",
+                "output_audio_format": "pcm16",
+                "input_audio_transcription": {
+                    "enabled": True,
+                    "model": "whisper-1"
+                },
+                "turn_detection": {
+                    "type": "server_vad",
+                    "threshold": 0.5,
+                    "prefix_padding_ms": 300,
+                    "silence_duration_ms": 200
+                },
+                "tools": self.tools,
+                "tool_choice": "auto",
+                "temperature": 0.8,
+                "max_output_tokens": None
+            }
+        }
+        print(f'Sending session update for {self.TYPE}:', json.dumps(session_update))
+        await openai_ws.send(json.dumps(session_update))
+
+    async def _receive_from_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
+        """Receive a message from the client."""
+        try:
+            async for message in websocket.iter_text():
+                data = json.loads(message)
+                if data['event'] == 'media' and openai_ws.open:
+                    audio_append = {
+                        "type": "input_audio_buffer.append",
+                        "audio": data['media']['payload']
+                    }
+                    await openai_ws.send(json.dumps(audio_append))
+                # TODO: Handle other event types if needed
+        except WebSocketDisconnect:
+            print("Client disconnected.")
+            if openai_ws.open:
+                await openai_ws.close()
+
+    async def _send_to_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
+        """Send a message to the client."""
+        available_functions = {
+            "chat_with_agent": self.chat_with_agent,
+        }
+        try:
+            async for openai_message in openai_ws:
+                response = json.loads(openai_message)
+                if response['type'] == 'session.updated':
+                    print("Session updated successfully:", response)
+                if response['type'] == 'response.audio.delta' and response.get('delta'):
+                    try:
+                        audio_payload = base64.b64encode(base64.b64decode(response['delta'])).decode('utf-8')
+                        audio_delta = {
+                            "event": "media",
+                            "media": {
+                                "payload": audio_payload
+                            }
+                        }
+                        await websocket.send(json.dumps(audio_delta))
+                    except Exception as e:
+                        print(f"Error processing audio data: {e}")
+
+                if response['type'] == 'response.output_item.done':
+                    if "item" in response and response["item"]["type"] == "function_call":
+                        item = response["item"]
+                        print(f"Function call: {item}")
+                        function_to_call = available_functions[item["name"]]
+                        function_args = json.loads(item["arguments"])
+                        try:
+                            function_response = function_to_call(**function_args)
+                        except Exception as e:
+                            print(f"Error calling function {item['name']}: {e}")
+                            pass
+
+                        func_resp = ""
+                        # make one str from the function_response list of str
+                        for resp in function_response:
+                            func_resp += resp
+                        await openai_ws.send(json.dumps({
+                            "type": "conversation.item.create",
+                            "item": {
+                                "type": "function_call_output",
+                                "call_id": item["call_id"],
+                                "output": func_resp
+                            }
+                        }))
+        except Exception as e:
+            print(f"Error in send_to_client: {e}")
 
     def add_message_to_queue(self, message: str, sender: str) -> None:
         """Add a message to the agent's queue."""
