@@ -1,12 +1,14 @@
 # Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
+[![Mahilo first demo](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail.png?raw=true)](https://youtu.be/6RjKJwzsdWY?si=v13lNN3-9RGuhWjh "Mahilo: Multi-Agent with Human-in-the-Loop System Framework")
+
 This project provides a flexible framework for defining and creating multi-agent systems that can each interact with humans while sharing relevant context internally. It allows developers to easily set up complex agent networks for various applications, from customer service to emergency response simulations.
 
 Agents are aware of other agents in the system and can decide to talk to one or more agents based on the current conversation context, simultaneously. The system is designed to make humans more efficient by giving them an assitant that can handle context from multiple agents and help the human stay focused on their specific problem, while surfacing all relevant information on demand.
 
 ## Features
-![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](https://github.com/wjayesh/mahilo/blob/main/assets/health_emergency1.png?raw=true)
-Above is an image that shows a three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents simultaneously to coordinate the response to the emergency.
+![An architecture diagram that shows the different components of the system](https://github.com/wjayesh/mahilo/blob/main/assets/mahilo.png?raw=true)
+Above is an architecture diagram that shows the different components of the system in the context of a health emergency scenario. You have three humans talking to their respective agents, which all share information internally.
 
 ### TL;DR:
 - Easy-to-extend BaseAgent class to create your own agents
@@ -18,6 +20,9 @@ Above is an image that shows a three-agent system where a medical advisor is tal
 - Multiple users can connect to the same agent. In emergency situation scenarios, this means multiple police officers can connect to the same dispatcher and receive updates from the dispatcher.
 - Agents are only activated when they are needed.
 
+
+![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](https://github.com/wjayesh/mahilo/blob/main/assets/health_emergency1.png?raw=true)
+Above is an image that shows a three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents simultaneously to coordinate the response to the emergency.
 
 More information on the features can be found in the [Detailed Features](#detailed-features) section below.
 
