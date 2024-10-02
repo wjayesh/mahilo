@@ -36,12 +36,13 @@ class Client:
                     data = json.loads(message)
                     if data['event'] == 'media':
                         audio_data = base64.b64decode(data['media']['payload'])
+                        print(f"Received audio data of length {len(audio_data)}")
                         self._play_audio(audio_data)
                     else:
                         print(f"{self.agent_type} message: {message}")
                 else:
                     print(f"{self.agent_type} message: {message}")
-        except websockets.exceptions.ConnectionClosed:
+        except websockets.ConnectionClosed:
             print(f"Connection to {self.agent_type} closed")
 
     async def send_message(self, message: str):
@@ -49,7 +50,7 @@ class Client:
             if self.agent_type == "emergency_dispatcher":
                 await self._record_and_send_audio()
             else:
-                await self.websocket.send(message)
+                await self.websocket.send(json.dumps(message))
         else:
             raise Exception("WebSocket connection not established")
 
@@ -83,7 +84,7 @@ class Client:
             print("Recording stopped.")
 
     def _play_audio(self, audio_data):
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, output=True)
+        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
         stream.write(audio_data)
         stream.stop_stream()
         stream.close()

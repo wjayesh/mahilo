@@ -1,19 +1,17 @@
 import base64
 import json
 import os
-from typing import TYPE_CHECKING, List, Dict, Optional
+from typing import TYPE_CHECKING, Any, List, Dict, Optional
 
 from aiohttp import ClientWebSocketResponse
 from fastapi import WebSocket, WebSocketDisconnect
-from openai import AzureOpenAI
+from openai import OpenAI
 from websockets import WebSocketClientProtocol
 
 
 # Initialize the OpenAI client
-client = AzureOpenAI(
-    azure_endpoint = "https://zentestgpt4.openai.azure.com/", 
-    api_key=os.getenv("OPENAI_API_KEY"),  
-    api_version="2024-05-01-preview"
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
 )
 
 if TYPE_CHECKING:
@@ -49,8 +47,45 @@ class BaseAgent:
         all_available_agents_with_description = self._agent_manager.get_agent_types_with_description()
         return {agent_type: description for agent_type, description in all_available_agents_with_description.items() if agent_type in self.can_contact and agent_type != self.TYPE}
 
+
     @property
-    def tools(self) -> str:
+    def tools_for_realtime(self) -> List[Dict[str, Any]]:
+        """Return the tools that this agent has for realtime."""
+        TOOLS = [
+            {
+                "name": "chat_with_agent",
+                "type": "function",
+                "description": (
+                    "Chat with an agent of a given type. You are already given "
+                    "the list of agent types you can talk to. Determine what agent type "
+                    "would be best suited to answer a question and also what question should be asked. "
+                    "The question will be sent as is to the agent's user so frame it in a way that some human can read "
+                    "and answer directly. It won't be answered by the agent, it will be answered by the user."
+                    "You should also proactively share any information with the agent that might be relevant "
+                    "to the conversation you are having with them. This will help the other agent be in the loop. "
+                    f"The agent types available to you are police_proxy and medical_proxy. "
+                    "If you think you can answer the question yourself, DON'T ask another agent."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "agent_type": {
+                            "type": "string",
+                            "description": "The type of agent to ask the question to.",
+                        },
+                        "question": {
+                            "type": "string",
+                            "description": "The question to ask the agent. This question will be sent directly to the agent's user, frame it in a way that the user can answer directly.",
+                        },
+                    },
+                    "required": ["agent_type", "question"],
+                }
+            },
+        ]
+        return TOOLS
+    
+    @property
+    def tools(self) -> List[Dict[str, Any]]:
         """Return the tools that this agent has.
         
         The output is a JSON string in the OpenAI schema for tools.
@@ -261,34 +296,28 @@ class BaseAgent:
                 "voice": "alloy",
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
-                "input_audio_transcription": {
-                    "enabled": True,
-                    "model": "whisper-1"
-                },
                 "turn_detection": {
                     "type": "server_vad",
                     "threshold": 0.5,
                     "prefix_padding_ms": 300,
                     "silence_duration_ms": 200
                 },
-                "tools": self.tools,
+                "tools": self.tools_for_realtime,
                 "tool_choice": "auto",
                 "temperature": 0.8,
-                "max_output_tokens": None
             }
         }
-        print(f'Sending session update for {self.TYPE}:', json.dumps(session_update))
+        print(f'Sending session update for {self.TYPE}:', json.dumps(session_update))        
         await openai_ws.send(json.dumps(session_update))
 
     async def _receive_from_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
         """Receive a message from the client."""
         try:
-            async for message in websocket.iter_text():
-                data = json.loads(message)
-                if data['event'] == 'media' and openai_ws.open:
+            async for message in websocket.iter_json():
+                if message['event'] == 'media' and openai_ws.open:
                     audio_append = {
                         "type": "input_audio_buffer.append",
-                        "audio": data['media']['payload']
+                        "audio": message['media']['payload']
                     }
                     await openai_ws.send(json.dumps(audio_append))
                 # TODO: Handle other event types if needed
@@ -305,6 +334,7 @@ class BaseAgent:
         try:
             async for openai_message in openai_ws:
                 response = json.loads(openai_message)
+                function_call_args = {}
                 if response['type'] == 'session.updated':
                     print("Session updated successfully:", response)
                 if response['type'] == 'response.audio.delta' and response.get('delta'):
@@ -316,18 +346,25 @@ class BaseAgent:
                                 "payload": audio_payload
                             }
                         }
-                        await websocket.send(json.dumps(audio_delta))
+                        # if websocket is not open, then don't send the message
+                        await websocket.send_json(audio_delta)
                     except Exception as e:
                         print(f"Error processing audio data: {e}")
 
                 if response['type'] == 'response.output_item.done':
+                    print(f"Received response.output_item.done: {response}")
                     if "item" in response and response["item"]["type"] == "function_call":
                         item = response["item"]
                         print(f"Function call: {item}")
                         function_to_call = available_functions[item["name"]]
                         function_args = json.loads(item["arguments"])
+                        # if the arguments are the same as the previous function call, then skip it
+                        if function_args == function_call_args:
+                            continue
                         try:
                             function_response = function_to_call(**function_args)
+                            print(f"Function response: {function_response}")
+                            function_call_args = function_args
                         except Exception as e:
                             print(f"Error calling function {item['name']}: {e}")
                             pass
@@ -344,6 +381,20 @@ class BaseAgent:
                                 "output": func_resp
                             }
                         }))
+                        response_create = {
+                            "event_id": f"event_{self.TYPE}_{id(self)}",
+                            "type": "response.create",
+                            "response": {
+                                "modalities": ["text"],
+                                "instructions": func_resp,
+                                "voice": "alloy",
+                                "output_audio_format": "pcm16",
+                                "tools": self.tools_for_realtime,
+                                "tool_choice": "required",
+                                "temperature": 0.7,
+                            }
+                        }
+                        await openai_ws.send(json.dumps(response_create))
         except Exception as e:
             print(f"Error in send_to_client: {e}")
 
