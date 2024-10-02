@@ -1,0 +1,2 @@
+{"content": "okay i'll send an ambulance. please ask the injured people to stay calm", "role": "user"}
+{"content": "What is the severity of the bleeding and are there any other injuries reported?", "role": "assistant", "function_call": null, "tool_calls": null}
