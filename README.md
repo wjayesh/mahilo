@@ -1,9 +1,11 @@
 # Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
-> NEW: OpenAI Realtime API support for voice!
+## 🎉 NEW: OpenAI Realtime API support for voice!
 
-> Check out the video below to see the new Realtime API feature in action with mahilo!
-> [![Mahilo Realtime API](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail_realtime.png?raw=true)](https://youtu.be/SoWUZUjhhq8?si=Upwa-x44Ss4_u2sn "Mahilo with the OpenAI Realtime API")
+Check out the video below to see the new Realtime API feature in action with mahilo!
+[![Mahilo Realtime API](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail_realtime.png?raw=true)](https://youtu.be/SoWUZUjhhq8?si=Upwa-x44Ss4_u2sn "Mahilo with the OpenAI Realtime API")
+
+---
 
 This project provides a flexible framework for defining and creating multi-agent systems that can each interact with humans while sharing relevant context internally. It allows developers to easily set up complex agent networks for various applications, from customer service to emergency response simulations.
 
