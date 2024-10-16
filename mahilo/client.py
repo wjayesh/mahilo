@@ -3,14 +3,12 @@ import click
 import websockets
 from typing import Optional
 import pyaudio
-import wave
 import base64
 import json
-import io
 import threading
 
 class Client:
-    def __init__(self, url: str, agent_type: Optional[str] = None):
+    def __init__(self, url: str, agent_type: Optional[str] = None, voice: bool = False):
         self.base_url = url
         self.agent_type = agent_type
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
@@ -18,9 +16,10 @@ class Client:
         self.stream = None
         self.is_recording = False
         self.stop_recording = threading.Event()
+        self.voice = voice
 
     async def connect(self):
-        if self.agent_type == "emergency_dispatcher":
+        if self.voice:
             websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/voice-stream/{self.agent_type}"
         else:
             websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_type or 'main'}"
@@ -32,7 +31,7 @@ class Client:
         try:
             while True:
                 message = await self.websocket.recv()
-                if self.agent_type == "emergency_dispatcher":
+                if self.voice:
                     data = json.loads(message)
                     if data['event'] == 'media':
                         audio_data = base64.b64decode(data['media']['payload'])
@@ -47,7 +46,7 @@ class Client:
 
     async def send_message(self, message: str):
         if self.websocket:
-            if self.agent_type == "emergency_dispatcher":
+            if self.voice:
                 await self._record_and_send_audio()
             else:
                 await self.websocket.send(json.dumps(message))
@@ -97,10 +96,10 @@ class Client:
 async def run_client(client: Client):
     await client.connect()
     while True:
-        if client.agent_type == "emergency_dispatcher":
+        if client.voice:
             print("Press Enter to start recording...")
             await asyncio.get_event_loop().run_in_executor(None, input)
-            await client.send_message("")  # This will trigger audio recording
+            await client.send_message("", client.voice)  # This will trigger audio recording
         else:
             message = await asyncio.get_event_loop().run_in_executor(
                 None, 
@@ -115,9 +114,10 @@ async def run_client(client: Client):
 @click.command()
 @click.option('--url', default='http://localhost:8000', help='Server URL')
 @click.option('--agent-type', required=True, help='Agent type to connect to')
-def cli(url: str, agent_type: Optional[str]):
+@click.option('--voice', is_flag=True, help='Enable voice', default=False)
+def cli(url: str, agent_type: Optional[str], voice: bool):
     """CLI for connecting to the multi-agent server."""
-    client = Client(url, agent_type)
+    client = Client(url, agent_type, voice)
     asyncio.run(run_client(client))
 
 if __name__ == "__main__":
