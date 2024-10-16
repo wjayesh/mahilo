@@ -1,6 +1,6 @@
 # Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
-## 🎉 NEW: mahilo now supports the OpenAI Realtime API!
+## 🎉 NEW: OpenAI Realtime API now available with mahilo!
 
 Check out the video below to see the new Realtime API feature in action with mahilo!
 [![Mahilo Realtime API](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail_realtime.png?raw=true)](https://youtu.be/SoWUZUjhhq8?si=Upwa-x44Ss4_u2sn "Mahilo with the OpenAI Realtime API")
