@@ -11,6 +11,7 @@ Agents are aware of other agents in the system and can decide to talk to one or 
 Above is an architecture diagram that shows the different components of the system in the context of a health emergency scenario. You have three humans talking to their respective agents, which all share information internally.
 
 ### TL;DR:
+- [Realtime API](https://platform.openai.com/docs/guides/realtime) support for talking to your agents via voice!
 - Easy-to-extend BaseAgent class to create your own agents
 - WebSocket-based real-time communication with multiple users simultaneously
 - Flexible communication patterns: peer-to-peer and hierarchical (or centralized)
@@ -36,6 +37,8 @@ More information on the features can be found in the [Detailed Features](#detail
    pip install mahilo
    ```
 
+   Note that if you want to use the voice feature, you need to have `pyaudio` installed. Learn how to do it for your OS, [here](https://pypi.org/project/PyAudio/).
+
 2. Export your OpenAI API key:
    ```
    export OPENAI_API_KEY=<your_api_key>
@@ -55,6 +58,12 @@ More information on the features can be found in the [Detailed Features](#detail
    python client.py --url http://localhost:8000 --agent-type your_agent_type
    ```
    Run this command in separate terminals for each of the agents and you can then start talking with them.
+
+   If you want to use the voice feature, you can run the same command with the `--voice` flag:
+   ```
+   cd mahilo
+   python client.py --url http://localhost:8000 --agent-type your_agent_type --voice
+   ```
 
 
 > [!TIP]
@@ -76,6 +85,12 @@ More information on the features can be found in the [Detailed Features](#detail
    python mahilo/client.py --url http://localhost:8000 --agent-type your_agent_type
    ```
    You can connect to the same server using multiple clients to test the system with multiple users. This is useful for testing the system in a real-world scenario where multiple agents need to coordinate their actions.
+
+   If you want to use the voice feature, you can run the same command with the `--voice` flag:
+   ```
+   cd mahilo
+   python client.py --url http://localhost:8000 --agent-type your_agent_type --voice
+   ```
 
 > [!TIP]
 > You dont have to specify the URL if you want to connect to the default server.
