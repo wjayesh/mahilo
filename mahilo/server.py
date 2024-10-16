@@ -1,9 +1,13 @@
 import json
+import os
+import aiohttp
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 import uvicorn
 import asyncio
 import uuid
+
+import websockets
 
 ## TODO add instructor
 
@@ -14,11 +18,49 @@ class ServerManager:
         self.app = FastAPI()
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+        self.key = os.getenv("AZURE_OPENAI_KEY")
+        self.token_provider = None
 
         self.agent_manager.populate_can_contact_for_agents()
         self._setup_routes()
 
     def _setup_routes(self):
+        @self.app.websocket("/ws/voice-stream/{agent_type}")
+        async def voice_stream_endpoint(websocket: WebSocket, agent_type: str):
+            print(f"Received voice stream connection request for agent type: {agent_type}")
+            await websocket.accept()
+            
+            connection_id = str(uuid.uuid4())
+            
+            if agent_type not in self.websocket_connections:
+                self.websocket_connections[agent_type] = {}            
+            self.websocket_connections[agent_type][connection_id] = websocket
+
+            try:
+                agent = self.agent_manager.get_agent(agent_type)
+                
+                headers = {}
+                if self.key is not None:
+                    headers = { "api-key": self.key }
+                # add params to the url without using urllib
+                ws_url = f"{self.endpoint}/openai/realtime?api-version=2024-10-01-preview&deployment={self.deployment}"
+                async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
+                    await agent._send_session_update(openai_ws)
+                    await asyncio.gather(
+                        agent._receive_from_client(websocket, openai_ws),
+                        agent._send_to_client(websocket, openai_ws)
+                    )
+
+            except WebSocketDisconnect:
+                print(f"WebSocket disconnected for agent type: {agent_type}")
+                del self.websocket_connections[agent_type][connection_id]
+                if not self.websocket_connections[agent_type]:
+                    del self.websocket_connections[agent_type]
+            except Exception as e:
+                print(f"Error in voice_stream_endpoint: {str(e)}")
+        
         @self.app.websocket("/ws/{agent_type}")
         async def websocket_endpoint(websocket: WebSocket, agent_type: str):
             print(f"Received WebSocket connection request for agent type: {agent_type}")
