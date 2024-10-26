@@ -2,10 +2,92 @@
 
 ## 🎉 NEW: OpenAI Realtime API now available with mahilo!
 
+You can now use voice to interact with your mahilo agents, powered by the OpenAI Realtime API!
+Here's a blog on how I built this feature, with technical details: [Building a voice-enabled Python FastAPI app using OpenAI's Realtime API](https://medium.com/thedeephub/building-a-voice-enabled-python-fastapi-app-using-openais-realtime-api-bfdf2947c3e4)
+
 Check out the video below to see the new Realtime API feature in action with mahilo!
 [![Mahilo Realtime API](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail_realtime.png?raw=true)](https://youtu.be/SoWUZUjhhq8?si=Upwa-x44Ss4_u2sn "Mahilo with the OpenAI Realtime API")
 
+
+## Install
+
+```
+pip install mahilo
+```
+
+Note that if you want to use the voice feature, you need to have `pyaudio` installed. Learn how to do it for your OS, [here](https://pypi.org/project/PyAudio/).
+
+## Usage
+
+```python
+from mahilo.agent import BaseAgent
+from mahilo.agent_manager import AgentManager
+from mahilo.server import ServerManager
+
+
+# initialize the agent manager
+manager = AgentManager()
+
+# create the agents
+emergency_dispatcher = Agent(
+    type='emergency_dispatcher',
+    description=EMERGENCY_DISPATCHER_PROMPT,
+    short_description=EMERGENCY_DISPATCHER_SHORT_DESCRIPTION,
+)
+police_proxy = Agent(
+    type='police_proxy',
+    description=POLICE_PROXY_PROMPT,
+    short_description=POLICE_PROXY_SHORT_DESCRIPTION,
+)
+medical_proxy = Agent(
+    type='medical_proxy',
+    description=MEDICAL_PROXY_PROMPT,
+    short_description=MEDICAL_PROXY_SHORT_DESCRIPTION,
+)
+
+# register the agents to the manager
+manager.register_agent(emergency_dispatcher)
+manager.register_agent(police_proxy)
+manager.register_agent(medical_proxy)
+
+# activate the emergency dispatcher as the starting point of the conversation
+emergency_dispatcher.activate()
+
+# initialize the server manager
+server = ServerManager(manager)
+
+# run the server
+def main():
+    server.run()
+
+if __name__ == "__main__":
+    main()
+```
+When the code above is run, it starts a websocket server on localhost (unless some other host is specified)that clients can connect to. In this case, clients can connect to three websocket endpoints corresponding to the three agents.
+For example, to do that for one agent, you can run the following command in a separate terminal (from the root of this repo):
+
+```
+python mahilo/client.py --url http://localhost:8000 --agent-type emergency_dispatcher
+```
+
+This would then allow you to talk to the emergency dispatcher agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
+
+Ideally, you would spin up more terminals for the other agents and can then observe how the conversation would unfold across the agents. For a demo of this, check out the video below, in addition to the Realtime API video above:
+
+[![Mahilo first demo](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail1.png?raw=true)](https://youtu.be/6RjKJwzsdWY?si=v13lNN3-9RGuhWjh "Mahilo: Multi-Agent with Human-in-the-Loop System Framework")
+
 ---
+
+# Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [Detailed Features](#detailed-features)
+- [Contributing](#contributing)
+
+## Overview
 
 This project provides a flexible framework for defining and creating multi-agent systems that can each interact with humans while sharing relevant context internally. It allows developers to easily set up complex agent networks for various applications, from customer service to emergency response simulations.
 
@@ -14,8 +96,6 @@ Agents are aware of other agents in the system and can decide to talk to one or 
 ## Features
 ![An architecture diagram that shows the different components of the system](https://github.com/wjayesh/mahilo/blob/main/assets/mahilo.png?raw=true)
 Above is an architecture diagram that shows the different components of the system in the context of a health emergency scenario. You have three humans talking to their respective agents, which all share information internally.
-
-[![Mahilo first demo](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail1.png?raw=true)](https://youtu.be/6RjKJwzsdWY?si=v13lNN3-9RGuhWjh "Mahilo: Multi-Agent with Human-in-the-Loop System Framework")
 
 ### TL;DR:
 - [Realtime API](https://platform.openai.com/docs/guides/realtime) support for talking to your agents via voice!
