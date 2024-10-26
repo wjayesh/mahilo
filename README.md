@@ -72,7 +72,15 @@ python mahilo/client.py --url http://localhost:8000 --agent-type emergency_dispa
 
 This would then allow you to talk to the emergency dispatcher agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
 
-Ideally, you would spin up more terminals for the other agents and can then observe how the conversation would unfold across the agents. For a demo of this, check out the video below, in addition to the Realtime API video above:
+Ideally, you would spin up more terminals for the other agents and can then observe how the conversation would unfold across the agents. 
+
+### How does the transfer of context work?
+
+Every BaseAgent comes with a function called `chat_with_an_agent` that takes in a question or a message and the agent it is being sent to. This function is used by the agents whenever they feel that they want info from the other agents.
+
+The `AgentManager` class manages the context and makes the last N conversations available across agents, for added visibility. More on this is in the [Detailed Features](#detailed-features) section below.
+
+For a demo of agents sharing context with each other, check out the video below, in addition to the Realtime API video above:
 
 [![Mahilo first demo](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail1.png?raw=true)](https://youtu.be/6RjKJwzsdWY?si=v13lNN3-9RGuhWjh "Mahilo: Multi-Agent with Human-in-the-Loop System Framework")
 
