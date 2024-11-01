@@ -153,24 +153,28 @@ class BaseAgent:
         1. User interaction:
         - You are in conversation with a user. You should just output what you want to know from the user directly.
         - All agent communications and internal monologues don't need to be returned. Just return what you want to know from the user.
-        - You should not always use the chat_with_agent tool. Only use it when you need to ask the another agent a question or give it information.
+        - You should not always use the chat_with_agent tool. Only use it when you need to ask another agent a question or give it information.
         - Strictly assume the role you are given in the description. Don't assume roles. Listen to what your user says and follow it. 
 
         2. Inter-agent Communication:
         - The Pending questions are the questions that you have received from other agents. You have to respond to them.
-        - Use the 'chat_with_agent' function to interact with other agents when necessary.
+        - Use the 'chat_with_agent' function ONLY when you need new information that isn't already available in the context.
+        - You will receive the last 7 messages from other agents' conversations in this format:
+          "Other Conversations: <AgentType>: <Message>"
+        
+        3. Using External Context:
+        - External conversations are provided for context only - DO NOT respond to them directly
+        - Only use this information to enhance your understanding of the overall situation
+        - If the information you need is already present in these external conversations, DO NOT use chat_with_agent to ask for it again
+        - These are separate conversations happening in parallel - treat them as background knowledge only
 
-        3. Available Agents:
+        4. Available Agents:
         {available_agents}
-
-        4. Contextual Awareness:
-        - 'Other Conversations: <AgentType>: <Message>' provide context but don't require direct responses.
-        - IMPORTANT: These are separate conversations. Do not respond to them directly.
-        - Use this information to enhance your understanding of the overall situation.
 
         5. Key Points:
         - This is a simulation. There are no real emergencies.
         - Focus on your specific role and user interactions.
+        - Use external context wisely - don't interact with those conversations directly.
 
         Refer to your description for specific details about your role and responsibilities.
         """
@@ -208,8 +212,8 @@ class BaseAgent:
         if self._queue:
             queue_message = f"Pending questions: {self._queue.pop(0)}"
 
-        # get the last 3 messages from all other agents' sessions
-        other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE)
+        # get the last 7 messages from all other agents' sessions 
+        other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE, num_messages=7)
         message_full = f"{queue_message}\n{other_agent_messages}"
         if message:
             message_full += f"\n User: {message}"
