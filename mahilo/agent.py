@@ -10,9 +10,15 @@ from websockets import WebSocketClientProtocol
 
 
 # Initialize the OpenAI client
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+try:
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY")
+    )
+except Exception as e:
+    print(f"Error initializing OpenAI client: {e}")
+    print("Please ensure OPENAI_API_KEY environment variable is set correctly")
+    import sys
+    sys.exit(1)
 
 if TYPE_CHECKING:
     from .agent_manager import AgentManager
