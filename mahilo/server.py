@@ -87,7 +87,7 @@ class ServerManager:
                 print(f"Agent retrieved: {agent}")
                 while True:
                     data = await websocket.receive_text()
-                    self.console.print(f"[dim blue]📨 Received message for agent:[/dim blue] [green]{agent_type}[/green]")
+                    self.console.print(f"[dim blue]📨 Received message for agent:[/dim blue] [green]{agent_type}[/green]: [dim]{data}[/dim]")
                     # if the agent is not active, ignore the message
                     if not agent.is_active():
                         self.console.print(f"[bold yellow]⚠️  Agent[/bold yellow] [green]{agent_type}[/green] [bold yellow]is not active[/bold yellow]")

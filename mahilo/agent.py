@@ -3,7 +3,6 @@ import json
 import os
 from typing import TYPE_CHECKING, Any, List, Dict, Optional
 
-from aiohttp import ClientWebSocketResponse
 from fastapi import WebSocket, WebSocketDisconnect
 from openai import OpenAI
 from websockets import WebSocketClientProtocol
