@@ -51,19 +51,21 @@ class AgentManager:
     
     # get last 3 messages from all agents' sessions except the current agent.
     def get_agent_messages(self, agent_type: str, num_messages: int = 7) -> str:
-        """Return the last 3 messages from all agents' sessions except the current agent.
-        
-        Format of the messages: "<agent_name>: <message>"
-        """
-        messages = ''
+        """Return messages from all agents' sessions except the current agent."""
+        messages = []
         for agent in self.agents.values():
             if agent.TYPE != agent_type and agent._session:
                 agent_messages = agent._session.get_last_n_messages(num_messages)
-                agent_name = agent.TYPE
-                messages += (f"Other Conversations: {agent_name}: ")
-                messages += "\n".join([f"{message['role']}: {message['content']}" for message in agent_messages])
-                messages += "\n"
-        return messages
+                if agent_messages:  # Only add if there are messages
+                    agent_name = agent.TYPE
+                    context = f"\nOther Conversations: {agent_name}\n"
+                    context += "\n".join([
+                        f"{message['role']}: {message['content']}" 
+                        for message in agent_messages
+                    ])
+                    messages.append(context)
+        
+        return "\n".join(messages) if messages else ""
         
     def populate_can_contact_for_agents(self) -> None:
         """Populate the can_contact list for all agents."""
