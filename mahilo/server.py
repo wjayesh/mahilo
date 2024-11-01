@@ -18,9 +18,9 @@ class ServerManager:
         self.app = FastAPI()
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
-        self.key = os.getenv("AZURE_OPENAI_KEY")
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", None)
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", None)
+        self.key = os.getenv("AZURE_OPENAI_KEY", None)
         self.token_provider = None
 
         self.agent_manager.populate_can_contact_for_agents()
@@ -31,6 +31,11 @@ class ServerManager:
         async def voice_stream_endpoint(websocket: WebSocket, agent_type: str):
             print(f"Received voice stream connection request for agent type: {agent_type}")
             await websocket.accept()
+            
+            if not all([self.endpoint, self.deployment, self.key]):
+                await websocket.send_text("Azure OpenAI credentials not configured. Voice streaming is unavailable.")
+                await websocket.close()
+                return
             
             connection_id = str(uuid.uuid4())
             
