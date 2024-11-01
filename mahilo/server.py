@@ -1,6 +1,4 @@
-import json
 import os
-import aiohttp
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 import uvicorn
@@ -8,6 +6,9 @@ import asyncio
 import uuid
 
 import websockets
+
+from rich.console import Console
+from rich.traceback import install
 
 ## TODO add instructor
 
@@ -18,19 +19,27 @@ class ServerManager:
         self.app = FastAPI()
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
-        self.key = os.getenv("AZURE_OPENAI_KEY")
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", None)
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", None)
+        self.key = os.getenv("AZURE_OPENAI_KEY", None)
         self.token_provider = None
 
         self.agent_manager.populate_can_contact_for_agents()
         self._setup_routes()
 
+        self.console = Console()
+        install()  # This enables rich traceback formatting for exceptions
+
     def _setup_routes(self):
         @self.app.websocket("/ws/voice-stream/{agent_type}")
         async def voice_stream_endpoint(websocket: WebSocket, agent_type: str):
-            print(f"Received voice stream connection request for agent type: {agent_type}")
+            self.console.print(f"[bold blue]🎙️ New voice stream connection[/bold blue] for agent type: [green]{agent_type}[/green]")
             await websocket.accept()
+            
+            if not all([self.endpoint, self.deployment, self.key]):
+                await websocket.send_text("Azure OpenAI credentials not configured. Voice streaming is unavailable.")
+                await websocket.close()
+                return
             
             connection_id = str(uuid.uuid4())
             
@@ -54,16 +63,16 @@ class ServerManager:
                     )
 
             except WebSocketDisconnect:
-                print(f"WebSocket disconnected for agent type: {agent_type}")
+                self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent type: [green]{agent_type}[/green]")
                 del self.websocket_connections[agent_type][connection_id]
                 if not self.websocket_connections[agent_type]:
                     del self.websocket_connections[agent_type]
             except Exception as e:
-                print(f"Error in voice_stream_endpoint: {str(e)}")
+                self.console.print(f"[bold red]⛔  Error in voice stream:[/bold red] {str(e)}", style="red")
         
         @self.app.websocket("/ws/{agent_type}")
         async def websocket_endpoint(websocket: WebSocket, agent_type: str):
-            print(f"Received WebSocket connection request for agent type: {agent_type}")
+            self.console.print(f"[bold blue]🔌 New WebSocket connection[/bold blue] for agent type: [green]{agent_type}[/green]")
             await websocket.accept()
             
             connection_id = str(uuid.uuid4())
@@ -78,22 +87,22 @@ class ServerManager:
                 print(f"Agent retrieved: {agent}")
                 while True:
                     data = await websocket.receive_text()
-                    print(f"Received message: {data}")
+                    self.console.print(f"[dim blue]📨 Received message for agent:[/dim blue] [green]{agent_type}[/green]")
                     # if the agent is not active, ignore the message
                     if not agent.is_active():
-                        print(f"Agent {agent_type} is not active")
+                        self.console.print(f"[bold yellow]⚠️  Agent[/bold yellow] [green]{agent_type}[/green] [bold yellow]is not active[/bold yellow]")
                         await websocket.send_text(f"Agent {agent_type} is not active.")
                         continue
                     response = agent.process_message(data)
                     await websocket.send_text(response["response"])
             except WebSocketDisconnect:
-                print(f"WebSocket disconnected for agent type: {agent_type}")
+                self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent type: [green]{agent_type}[/green]")
                 del self.websocket_connections[agent_type][connection_id]
                 if not self.websocket_connections[agent_type]:
                     print(f"No connections left for agent type: {agent_type}")
                     del self.websocket_connections[agent_type]
             except Exception as e:
-                print(f"Error in websocket_endpoint: {str(e)}")
+                self.console.print(f"[bold red]⛔  Error in websocket:[/bold red] {str(e)}", style="red")
 
         @self.app.on_event("startup")
         async def startup_event():
@@ -107,7 +116,7 @@ class ServerManager:
                     agent_type = agent.TYPE
                     if agent_type in self.websocket_connections:
                         for ws in self.websocket_connections[agent_type].values():
-                            print("Sending message to: ", ws)
+                            self.console.print(f"[bold cyan]📤 Sending inter-agent message[/bold cyan] to websocket: [dim]{ws}[/dim]")
                             ## TODO log to file
                             await ws.send_text(message)
             await asyncio.sleep(1)

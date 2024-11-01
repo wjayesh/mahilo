@@ -1,5 +1,6 @@
 import asyncio
 import click
+import rich
 import websockets
 from typing import Optional
 import pyaudio
@@ -32,17 +33,22 @@ class Client:
             while True:
                 message = await self.websocket.recv()
                 if self.voice:
+                    # Handle non-JSON system messages
+                    if not message.startswith('{'):
+                        rich.print(f"[bold blue]mahilo:[/bold blue] {message}")
+                        continue
+                    
                     data = json.loads(message)
                     if data['event'] == 'media':
                         audio_data = base64.b64decode(data['media']['payload'])
-                        print(f"Received audio data of length {len(audio_data)}")
+                        rich.print(f"[bold green]🎵  Received audio data[/bold green] ([italic]{len(audio_data)} bytes[/italic])")
                         self._play_audio(audio_data)
                     else:
-                        print(f"{self.agent_type} message: {message}")
+                        rich.print(f"[bold magenta]{self.agent_type or 'Agent'}:[/bold magenta] {message}")
                 else:
-                    print(f"{self.agent_type} message: {message}")
+                    rich.print(f"[bold magenta]{self.agent_type or 'Agent'}:[/bold magenta] {message}")
         except websockets.ConnectionClosed:
-            print(f"Connection to {self.agent_type} closed")
+            rich.print(f"[bold red]⚠️  Connection to {self.agent_type} closed[/bold red]")
 
     async def send_message(self, message: str):
         if self.websocket:
@@ -99,7 +105,7 @@ async def run_client(client: Client):
         if client.voice:
             print("Press Enter to start recording...")
             await asyncio.get_event_loop().run_in_executor(None, input)
-            await client.send_message("", client.voice)  # This will trigger audio recording
+            await client.send_message("")  # This will trigger audio recording
         else:
             message = await asyncio.get_event_loop().run_in_executor(
                 None, 

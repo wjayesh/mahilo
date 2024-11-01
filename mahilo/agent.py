@@ -7,12 +7,22 @@ from aiohttp import ClientWebSocketResponse
 from fastapi import WebSocket, WebSocketDisconnect
 from openai import OpenAI
 from websockets import WebSocketClientProtocol
+from rich.console import Console
+from rich.traceback import install
 
+console = Console()
+install()  #
 
 # Initialize the OpenAI client
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+try:
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY")
+    )
+except Exception as e:
+    console.print("[bold red] ⛔  Error initializing OpenAI client:[/bold red]", str(e))
+    console.print("[bold red]Please ensure OPENAI_API_KEY environment variable is set correctly[/bold red]")
+    import sys
+    sys.exit(1)
 
 if TYPE_CHECKING:
     from .agent_manager import AgentManager
@@ -133,7 +143,9 @@ class BaseAgent:
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
         available_agents = self.get_contactable_agents_with_description()
-        print("Available Agents: ", available_agents)
+        console.print("[bold blue]🤖 Available Agents:[/bold blue]")
+        for agent_type, desc in available_agents.items():
+            console.print(f"  [green]▪[/green] [cyan]{agent_type}:[/cyan] [dim]{desc}[/dim]")
 
         PROMPT = f"""
         You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise. 

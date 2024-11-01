@@ -6,3 +6,4 @@ uvicorn==0.30.6
 websockets==13.0.1
 pyaudio
 click==8.1.7
+rich==13.9.3
