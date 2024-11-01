@@ -50,7 +50,7 @@ class AgentManager:
         return {agent.TYPE: agent.short_description for agent in self.agents.values()}
     
     # get last 3 messages from all agents' sessions except the current agent.
-    def get_agent_messages(self, agent_type: str) -> str:
+    def get_agent_messages(self, agent_type: str, num_messages: int = 7) -> str:
         """Return the last 3 messages from all agents' sessions except the current agent.
         
         Format of the messages: "<agent_name>: <message>"
@@ -58,7 +58,7 @@ class AgentManager:
         messages = ''
         for agent in self.agents.values():
             if agent.TYPE != agent_type and agent._session:
-                agent_messages = agent._session.get_last_n_messages(3)
+                agent_messages = agent._session.get_last_n_messages(num_messages)
                 agent_name = agent.TYPE
                 messages += (f"Other Conversations: {agent_name}: ")
                 messages += "\n".join([f"{message['role']}: {message['content']}" for message in agent_messages])

@@ -33,12 +33,20 @@ class ServerManager:
     def _setup_routes(self):
         @self.app.websocket("/ws/voice-stream/{agent_type}")
         async def voice_stream_endpoint(websocket: WebSocket, agent_type: str):
-            self.console.print(f"[bold blue]🎙️ New voice stream connection[/bold blue] for agent type: [green]{agent_type}[/green]")
             await websocket.accept()
             
+            agent = self.agent_manager.get_agent(agent_type)
+            if not agent:
+                self.console.print(f"[bold red]⛔  Agent type not found:[/bold red] [green]{agent_type}[/green]")
+                await websocket.send_text(f"Error: Agent type '{agent_type}' is not registered with the server")
+                await websocket.close(1008)  # Using 1008 (Policy Violation) status code
+                return
+
+            self.console.print(f"[bold blue]🎙️ New voice stream connection[/bold blue] for agent type: [green]{agent_type}[/green]")
+
             if not all([self.endpoint, self.deployment, self.key]):
                 await websocket.send_text("Azure OpenAI credentials not configured. Voice streaming is unavailable.")
-                await websocket.close()
+                await websocket.close(1008)  # Using 1008 (Policy Violation) status code
                 return
             
             connection_id = str(uuid.uuid4())
@@ -48,8 +56,6 @@ class ServerManager:
             self.websocket_connections[agent_type][connection_id] = websocket
 
             try:
-                agent = self.agent_manager.get_agent(agent_type)
-                
                 headers = {}
                 if self.key is not None:
                     headers = { "api-key": self.key }
@@ -72,8 +78,16 @@ class ServerManager:
         
         @self.app.websocket("/ws/{agent_type}")
         async def websocket_endpoint(websocket: WebSocket, agent_type: str):
-            self.console.print(f"[bold blue]🔌 New WebSocket connection[/bold blue] for agent type: [green]{agent_type}[/green]")
             await websocket.accept()
+
+            agent = self.agent_manager.get_agent(agent_type)
+            if not agent:
+                self.console.print(f"[bold red]⛔  Agent type not found:[/bold red] [green]{agent_type}[/green]")
+                await websocket.send_text(f"Error: Agent type '{agent_type}' is not registered with the server")
+                await websocket.close(1008)  # Using 1008 (Policy Violation) status code
+                return
+            
+            self.console.print(f"[bold blue]🔌 New WebSocket connection[/bold blue] for agent type: [green]{agent_type}[/green]")
             
             connection_id = str(uuid.uuid4())
             
@@ -83,11 +97,10 @@ class ServerManager:
             self.websocket_connections[agent_type][connection_id] = websocket
 
             try:
-                agent = self.agent_manager.get_agent(agent_type)
                 print(f"Agent retrieved: {agent}")
                 while True:
                     data = await websocket.receive_text()
-                    self.console.print(f"[dim blue]📨 Received message for agent:[/dim blue] [green]{agent_type}[/green]")
+                    self.console.print(f"[dim blue]📨 Received message for agent:[/dim blue] [green]{agent_type}[/green]: [dim]{data}[/dim]")
                     # if the agent is not active, ignore the message
                     if not agent.is_active():
                         self.console.print(f"[bold yellow]⚠️  Agent[/bold yellow] [green]{agent_type}[/green] [bold yellow]is not active[/bold yellow]")
