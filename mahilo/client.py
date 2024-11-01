@@ -99,7 +99,7 @@ async def run_client(client: Client):
         if client.voice:
             print("Press Enter to start recording...")
             await asyncio.get_event_loop().run_in_executor(None, input)
-            await client.send_message("", client.voice)  # This will trigger audio recording
+            await client.send_message("")  # This will trigger audio recording
         else:
             message = await asyncio.get_event_loop().run_in_executor(
                 None, 
