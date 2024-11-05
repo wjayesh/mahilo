@@ -159,7 +159,8 @@ class BaseAgent:
         - The Pending questions are the questions that you have received from other agents. You have to respond to them.
         - Use the 'chat_with_agent' function ONLY when you need new information that isn't already available in the context.
         - You will receive the last 7 messages from other agents' conversations in this format:
-          "Other Conversations: <AgentType>: <Message>"
+          "Other Conversations: <AgentType>:" followed by a series of messages labeled with "user" and "assistant". the 
+          user would be the other agent's human and the assistant would be the other agent.
         
         3. Using External Context:
         - External conversations are provided for context only - DO NOT respond to them directly
@@ -222,7 +223,7 @@ class BaseAgent:
 
         # Make the API call
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=current_messages,
             tools=self.tools,
             tool_choice="auto",
