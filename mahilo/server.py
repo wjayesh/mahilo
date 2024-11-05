@@ -121,6 +121,11 @@ class ServerManager:
         async def startup_event():
             asyncio.create_task(self._handle_inter_agent_communication())
 
+        @self.app.websocket("/health")
+        async def health_check(websocket: WebSocket):
+            await websocket.accept()
+            await websocket.close()
+
     async def _handle_inter_agent_communication(self):
         while True:
             for agent in self.agent_manager.get_all_agents():
