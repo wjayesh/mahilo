@@ -24,5 +24,5 @@ class WhatIfAgent(BaseAgent):
             type='what_if_agent',
             description=WHAT_IF_PROMPT,
             short_description=f"Counterfactual explorer for the {event_name} simulation.",
-            can_contact=[]
+            can_contact=["historical_figure_agent"]
         )

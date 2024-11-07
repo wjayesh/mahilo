@@ -26,5 +26,5 @@ class ContextAgent(BaseAgent):
             type='context_agent',
             description=CONTEXT_PROMPT.replace("chosen historical event", event_name),
             short_description=f"Context provider for the {event_name} simulation.",
-            can_contact=["what_if_agent"]
+            can_contact=["what_if_agent", "historical_figure_agent"]
         )
