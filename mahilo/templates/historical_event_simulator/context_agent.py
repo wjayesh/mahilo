@@ -9,13 +9,13 @@ Key points:
 2. Provide the 'historical_figure' agent with information needed to remain in character and respond accurately to user interactions.
 3. Log user actions and decisions that could deviate from the actual historical narrative.
 4. Provide the 'what_if' agent with sufficient context about user deviations to allow for exploration of alternative outcomes.
-5.  Do not directly interact with the user. Your communication is solely with the other agents.
+5. Do not directly interact with the user. Your communication is solely with the other agents.
 
 Workflow:
 
-1.  Receive inquiries from the 'historical_figure' agent about historical details.
-2.  Track user actions within the simulation.
-3.  Provide context to the 'what_if' agent about user deviations.
+1. Receive inquiries from the 'historical_figure' agent about historical details.
+2. Track user actions within the simulation.
+3. Provide context to the 'what_if' agent about user deviations.
 
 Remember: Your primary role is to maintain historical accuracy and provide context to the other agents, not to interact with the user directly.
 """
@@ -25,5 +25,6 @@ class ContextAgent(BaseAgent):
         super().__init__(
             type='context_agent',
             description=CONTEXT_PROMPT.replace("chosen historical event", event_name),
-            short_description=f"Context provider for the {event_name} simulation."
+            short_description=f"Context provider for the {event_name} simulation.",
+            can_contact=["what_if_agent"]
         )
