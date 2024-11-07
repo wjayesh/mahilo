@@ -99,7 +99,7 @@ For a demo of agents sharing context with each other, check out the video below,
 
 This project provides a flexible framework for defining and creating multi-agent systems that can each interact with humans while sharing relevant context internally. It allows developers to easily set up complex agent networks for various applications, from customer service to emergency response simulations.
 
-Agents are aware of other agents in the system and can decide to talk to one or more agents based on the current conversation context, simultaneously. The system is designed to make humans more efficient by giving them an assitant that can handle context from multiple agents and help the human stay focused on their specific problem, while surfacing all relevant information on demand.
+Agents are aware of other agents in the system and can decide to talk to one or more agents based on the current conversation context, simultaneously. The system is designed to make humans more efficient by giving them an assistant that can handle context from multiple agents and help the human stay focused on their specific problem, while surfacing all relevant information on demand.
 
 ## Features
 ![An architecture diagram that shows the different components of the system](https://github.com/wjayesh/mahilo/blob/main/assets/mahilo.png?raw=true)
@@ -212,7 +212,7 @@ More information on the features can be found in the [Detailed Features](#detail
 
 ### Human-in-the-Loop
 - The human-in-the-loop is implemented by having the human client connect to each agent in the system.
-- The system is designed to make humans more efficient by giving an assitant that can handle context from multiple agents and help the human stay focused on the conversation.
+- The system is designed to make humans more efficient by giving an assistant that can handle context from multiple agents and help the human stay focused on the conversation.
 - The agents are aware of what's going on in all the conversations and can help the human get information on demand.
 - The human can override the agent's decision to choose an agent for any situation.
 
