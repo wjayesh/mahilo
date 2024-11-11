@@ -106,7 +106,7 @@ class ServerManager:
                         self.console.print(f"[bold yellow]⚠️  Agent[/bold yellow] [green]{agent_type}[/green] [bold yellow]is not active[/bold yellow]")
                         await websocket.send_text(f"Agent {agent_type} is not active.")
                         continue
-                    response = agent.process_message(data)
+                    response = await agent.process_chat_message(data)
                     await websocket.send_text(response["response"])
             except WebSocketDisconnect:
                 self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent type: [green]{agent_type}[/green]")
@@ -131,13 +131,10 @@ class ServerManager:
             for agent in self.agent_manager.get_all_agents():
                 if agent.is_active() and agent._queue:
                     message = agent._queue.pop(0)
-                    agent_type = agent.TYPE
-                    if agent_type in self.websocket_connections:
-                        for ws in self.websocket_connections[agent_type].values():
-                            self.console.print(f"[bold cyan]📤 Sending inter-agent message[/bold cyan] to websocket: [dim]{ws}[/dim]")
-                            ## TODO log to file
-                            await ws.send_text(message)
+                    websockets = self.websocket_connections[agent.TYPE].values()
+                    list_websockets = [ws for ws in websockets]
+                    await agent.process_queue_message(message, websockets=list_websockets)
             await asyncio.sleep(1)
-
+    
     def run(self, host: str = "0.0.0.0", port: int = 8000):
         uvicorn.run(self.app, host=host, port=port)
