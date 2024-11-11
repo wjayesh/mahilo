@@ -170,16 +170,22 @@ class BaseAgent:
                 "'chat_with_agent' and 'contact_human' are predefined tools and can't be modified."
             )
         self._custom_tools.append(tool)
+        print(f"Tool '{tool_name}' added to toolkit")
 
     def remove_tool(self, tool_name: str) -> None:
         """Remove a tool from the agent's toolkit by name.
         Note: Cannot remove base tools."""
         if tool_name in ["chat_with_agent", "contact_human"]:
-            raise ValueError(
-                f"Tool with name '{tool_name}' cannot be removed. It is a base tool."
-            )
-        self._custom_tools = [t for t in self._custom_tools 
-                            if t.get("function", {}).get("name") != tool_name]
+            raise ValueError(f"Cannot remove base tool '{tool_name}'")
+            
+        # Find tool index to avoid multiple list traversals
+        tool_names = [t.get("function", {}).get("name") for t in self._custom_tools]
+        try:
+            tool_index = tool_names.index(tool_name)
+            self._custom_tools.pop(tool_index)
+            print(f"Tool '{tool_name}' removed from toolkit")
+        except ValueError:
+            raise ValueError(f"Tool '{tool_name}' not found in toolkit")
 
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
