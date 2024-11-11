@@ -413,11 +413,12 @@ class BaseAgent:
                 )
 
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=current_messages,
                 tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
                 tool_choice="auto",
             )
+            print(response.choices[0].message)
             tool_calls = response.choices[0].message.tool_calls
 
             # convert response_message ChatCompletionMessage to dict
@@ -472,7 +473,7 @@ class BaseAgent:
             tool_choice="auto",
         )
 
-        print(response.choices[0].message)
+        print("In queue fn:", response.choices[0].message)
 
         # TODO support parallel function calling. we might want to add something like
         # broadcast message to all agents, and see who responds first.
@@ -536,11 +537,12 @@ class BaseAgent:
                 )
 
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=current_messages,
                 tools=self.tools,
                 tool_choice="auto",
             )
+            print("In queue fn:", response.choices[0].message)
             tool_calls = response.choices[0].message.tool_calls
 
             # convert response_message ChatCompletionMessage to dict
