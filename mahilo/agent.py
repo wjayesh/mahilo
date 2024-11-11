@@ -372,6 +372,7 @@ class BaseAgent:
         while tool_calls:
             available_functions = {
                 "chat_with_agent": self.chat_with_agent,
+                **self._custom_functions  # Add custom functions to available functions
             }
             
             for tool_call in tool_calls:
