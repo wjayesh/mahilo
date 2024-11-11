@@ -169,8 +169,8 @@ class BaseAgent:
         - Once you have the information or need to respond, use contact_human to reply to the user
         - Don't explain your internal process, just respond naturally in your role
 
-        2. Agent Messages (Pending Questions):
-        - These appear in the format "Pending questions: <AgentType>: <question>"
+        2. Agent Messages (Pending Messages):
+        - These appear in the format "Pending messages: <AgentType>: <message>"
         - If you can answer using available context, respond using chat_with_agent to that agent
         - If you need to ask your user, use contact_human and then inform the agent you're getting the information
         - When your user later provides the answer, send it to the requesting agent using chat_with_agent
@@ -224,13 +224,9 @@ class BaseAgent:
         if message:
             session_messages.append({"content": message, "role": "user"})
 
-        queue_message = ""
-        if self._queue:
-            queue_message = f"Pending questions: {self._queue.pop(0)}"
-
         # get the last 7 messages from all other agents' sessions 
         other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE, num_messages=7)
-        message_full = f"{queue_message}\n{other_agent_messages}"
+        message_full = f"{other_agent_messages}"
         if message:
             message_full += f"\n User: {message}"
 
@@ -339,7 +335,7 @@ class BaseAgent:
         current_messages = session_messages.copy()
 
         if message:
-            queue_message = f"Pending questions: {message}"
+            queue_message = f"Pending messages: {message}"
 
         print(f"Queue message for {self.TYPE}: {queue_message}")
 
