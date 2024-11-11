@@ -1,7 +1,7 @@
 import base64
 import json
 import os
-from typing import TYPE_CHECKING, Any, List, Dict, Optional
+from typing import TYPE_CHECKING, Any, List, Dict, Optional, Callable, get_type_hints
 
 from fastapi import WebSocket, WebSocketDisconnect
 from openai import AsyncOpenAI
@@ -26,6 +26,10 @@ except Exception as e:
 if TYPE_CHECKING:
     from .agent_manager import AgentManager
 from .session import Session
+
+class ToolFunctionError(Exception):
+    """Custom exception for tool function validation errors."""
+    pass
 
 class BaseAgent:
     """Base class for agents.
@@ -52,10 +56,12 @@ class BaseAgent:
             description (str, optional): Long description of the agent
             can_contact (List[str], optional): List of agent types this agent can contact
             short_description (str, optional): Brief description of the agent
-            tools (List[Dict], optional): List of tool configurations. Each tool can be either:
-                - A dict with "tool" and "function" keys, where:
-                    - "tool" is the OpenAI tool configuration
-                    - "function" is the callable implementation
+            tools (List[Dict], optional): List of tool configurations. Each tool must contain:
+                - "tool": The OpenAI tool configuration
+                - "function": A callable that returns str or List[str]
+                
+        Raises:
+            ToolFunctionError: If any tool configuration or function is invalid
         """
         self.TYPE = type
         self._queue = []
@@ -67,15 +73,16 @@ class BaseAgent:
 
         if tools:
             for tool_config in tools:
-                tool = tool_config["tool"]
-                func = tool_config["function"]
-                tool_name = tool["function"]["name"]
-                
-                if tool_name in ["chat_with_agent", "contact_human"]:
-                    raise ValueError(f"Tool name '{tool_name}' is reserved for base tools")
-                
-                self._custom_tools.append(tool)
-                self._custom_functions[tool_name] = func
+                try:
+                    self._validate_tool_config(tool_config)
+                    tool = tool_config["tool"]
+                    func = tool_config["function"]
+                    tool_name = tool["function"]["name"]
+                    
+                    self._custom_tools.append(tool)
+                    self._custom_functions[tool_name] = func
+                except ToolFunctionError as e:
+                    raise ToolFunctionError(f"Invalid tool configuration: {str(e)}")
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
@@ -177,13 +184,16 @@ class BaseAgent:
         return self._get_base_tools() + self._custom_tools
 
     def add_tool(self, tool_config: Dict[str, Any]) -> None:
-        """Add a new tool to the agent's toolkit with its corresponding function.
+        """Add a new tool to the agent's toolkit.
         
         Args:
-            tool_config (Dict[str, Any]): Tool configuration dictionary containing:
+            tool_config (Dict[str, Any]): Tool configuration containing:
                 - "tool": The OpenAI tool configuration
-                - "function": The callable implementation
+                - "function": A callable that returns str or List[str]
                 
+        Raises:
+            ToolFunctionError: If the tool configuration or function is invalid
+            
         Example:
             agent.add_tool({
                 "tool": {
@@ -199,36 +209,18 @@ class BaseAgent:
                         }
                     }
                 },
-                "function": search_database_fn
+                "function": search_database  # Must return str or List[str]
             })
         """
-        if not isinstance(tool_config, dict) or "tool" not in tool_config or "function" not in tool_config:
-            raise ValueError(
-                "Tool config must be a dictionary with 'tool' and 'function' keys. "
-                "The 'tool' key should contain the OpenAI tool configuration, "
-                "and the 'function' key should contain the callable implementation."
-            )
-                
+        self._validate_tool_config(tool_config)
+        
         tool = tool_config["tool"]
         func = tool_config["function"]
-        
-        # Validate tool has required properties
-        if "function" not in tool or "name" not in tool["function"]:
-            raise ValueError("Tool configuration must have a 'function' property with a 'name' field")
-                
-        # Check if tool with same name already exists
         tool_name = tool["function"]["name"]
-        if tool_name in ["chat_with_agent", "contact_human"]:
-            raise ValueError(f"Tool name '{tool_name}' is reserved for base tools")
-                
+        
         if any(t.get("function", {}).get("name") == tool_name for t in self.tools):
-            raise ValueError(f"Tool with name '{tool_name}' already exists")
-                
-        # Validate function is callable
-        if not callable(func):
-            raise ValueError(f"Function provided for tool '{tool_name}' must be callable")
-                
-        # Add tool and its function
+            raise ToolFunctionError(f"Tool with name '{tool_name}' already exists")
+        
         self._custom_tools.append(tool)
         self._custom_functions[tool_name] = func
         print(f"Tool '{tool_name}' added to toolkit")
@@ -688,3 +680,70 @@ class BaseAgent:
         for ws in websockets:
             await ws.send_text(message)
         return f"I have sent your message to the human as I don't have the information in context."
+
+    def _validate_tool_function(self, func: Callable, tool_name: str) -> None:
+        """Validate that a tool function meets the required signature.
+        
+        Args:
+            func: The function to validate
+            tool_name: Name of the tool (for error messages)
+            
+        Raises:
+            ToolFunctionError: If the function doesn't meet requirements
+        """
+        # Check if it's callable
+        if not callable(func):
+            raise ToolFunctionError(f"Tool function for '{tool_name}' must be callable")
+
+        # Get return type hint
+        return_type = get_type_hints(func).get('return')
+        if return_type is None:
+            raise ToolFunctionError(
+                f"Tool function '{tool_name}' must have a return type hint of str or List[str]"
+            )
+
+        # Validate return type
+        valid_return_types = (str, List[str])
+        if return_type not in valid_return_types and not (
+            hasattr(return_type, "__origin__") and 
+            return_type.__origin__ is list and 
+            return_type.__args__[0] is str
+        ):
+            raise ToolFunctionError(
+                f"Tool function '{tool_name}' must return str or List[str], "
+                f"got {return_type}"
+            )
+
+    def _validate_tool_config(self, tool_config: Dict[str, Any]) -> None:
+        """Validate the complete tool configuration.
+        
+        Args:
+            tool_config: The tool configuration dictionary
+            
+        Raises:
+            ToolFunctionError: If the configuration is invalid
+        """
+        if not isinstance(tool_config, dict):
+            raise ToolFunctionError("Tool config must be a dictionary")
+            
+        if "tool" not in tool_config or "function" not in tool_config:
+            raise ToolFunctionError(
+                "Tool config must contain both 'tool' and 'function' keys"
+            )
+            
+        tool = tool_config["tool"]
+        func = tool_config["function"]
+        
+        if "function" not in tool or "name" not in tool["function"]:
+            raise ToolFunctionError(
+                "Tool configuration must have a 'function' property with a 'name' field"
+            )
+            
+        tool_name = tool["function"]["name"]
+        if tool_name in ["chat_with_agent", "contact_human"]:
+            raise ToolFunctionError(
+                f"Tool name '{tool_name}' is reserved for base tools"
+            )
+            
+        # Validate the function
+        self._validate_tool_function(func, tool_name)
