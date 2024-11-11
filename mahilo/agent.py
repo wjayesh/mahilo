@@ -44,12 +44,13 @@ class BaseAgent:
     short_description: str = None
     can_contact: List[str] = []
 
-    def __init__(self, type: str, description: str = None, can_contact: List[str] = [], short_description: str = None):
+    def __init__(self, type: str, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
         self.TYPE = type
         self._queue = []
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
+        self._custom_tools = tools or []
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
@@ -93,18 +94,11 @@ class BaseAgent:
         ]
         return TOOLS
     
-    @property
-    def tools(self) -> List[Dict[str, Any]]:
-        """Return the tools that this agent has.
-        
-        The output is a JSON string in the OpenAI schema for tools.
-        This base agent has the following tools:
-        - chat_with_agent function that can take in an agent type and a question as input. The agent type
-        is the agent that the current agent wants to chat with. The question is the
-        question that the current agent wants to ask the other agent.
-        """
+    
+    def _get_base_tools(self) -> List[Dict[str, Any]]:
+        """Return the base tools that all agents must have."""
         available_agents = self.get_contactable_agents_with_description()
-        TOOLS = [
+        return [
             {
                 "type": "function",
                 "function": {
@@ -128,7 +122,7 @@ class BaseAgent:
                             },
                             "question": {
                                 "type": "string",
-                                "description": "The question to ask the agent. This question will be sent directly to the agent's user, frame it in a way that the user can answer directly.",
+                                "description": "The question to ask the agent.",
                             },
                         },
                     }
@@ -151,8 +145,33 @@ class BaseAgent:
                 },
             },
         ]
-        return TOOLS
-    
+
+    @property
+    def tools(self) -> List[Dict[str, Any]]:
+        """Return all tools available to this agent, combining base and custom tools."""
+        return self._get_base_tools() + self._custom_tools
+
+    def add_tool(self, tool: Dict[str, Any]) -> None:
+        """Add a new tool to the agent's toolkit."""
+        # Check if tool with same name already exists
+        tool_name = tool.get("function", {}).get("name")
+        if any(t.get("function", {}).get("name") == tool_name for t in self.tools):
+            raise ValueError(
+                f"Tool with name '{tool_name}' already exists. Please note that "
+                "'chat_with_agent' and 'contact_human' are predefined tools and can't be modified."
+            )
+        self._custom_tools.append(tool)
+
+    def remove_tool(self, tool_name: str) -> None:
+        """Remove a tool from the agent's toolkit by name.
+        Note: Cannot remove base tools."""
+        if tool_name in ["chat_with_agent", "contact_human"]:
+            raise ValueError(
+                f"Tool with name '{tool_name}' cannot be removed. It is a base tool."
+            )
+        self._custom_tools = [t for t in self._custom_tools 
+                            if t.get("function", {}).get("name") != tool_name]
+
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
         available_agents = self.get_contactable_agents_with_description()
