@@ -153,8 +153,12 @@ class BaseAgent:
 
     def add_tool(self, tool: Dict[str, Any]) -> None:
         """Add a new tool to the agent's toolkit."""
+        # Validate tool has required properties
+        if "function" not in tool or "name" not in tool["function"]:
+            raise ValueError("Tool must have a 'function' property with a 'name' field")
+            
         # Check if tool with same name already exists
-        tool_name = tool.get("function", {}).get("name")
+        tool_name = tool["function"]["name"]
         if any(t.get("function", {}).get("name") == tool_name for t in self.tools):
             raise ValueError(
                 f"Tool with name '{tool_name}' already exists. Please note that "
