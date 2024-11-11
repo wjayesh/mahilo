@@ -45,17 +45,37 @@ class BaseAgent:
     can_contact: List[str] = []
 
     def __init__(self, type: str, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
+        """Initialize a BaseAgent.
+        
+        Args:
+            type (str): The type of agent
+            description (str, optional): Long description of the agent
+            can_contact (List[str], optional): List of agent types this agent can contact
+            short_description (str, optional): Brief description of the agent
+            tools (List[Dict], optional): List of tool configurations. Each tool can be either:
+                - A dict with "tool" and "function" keys, where:
+                    - "tool" is the OpenAI tool configuration
+                    - "function" is the callable implementation
+        """
         self.TYPE = type
         self._queue = []
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
-        # validate if the tool names supplied are not already taken
+        self._custom_tools = []
+        self._custom_functions = {}
+
         if tools:
-            for tool in tools:
-                if tool["function"]["name"] in ["chat_with_agent", "contact_human"]:
-                    raise ValueError(f"Tool with name '{tool['function']['name']}' cannot be used as it is a base tool.")
-        self._custom_tools = tools or []
+            for tool_config in tools:
+                tool = tool_config["tool"]
+                func = tool_config["function"]
+                tool_name = tool["function"]["name"]
+                
+                if tool_name in ["chat_with_agent", "contact_human"]:
+                    raise ValueError(f"Tool name '{tool_name}' is reserved for base tools")
+                
+                self._custom_tools.append(tool)
+                self._custom_functions[tool_name] = func
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
@@ -156,36 +176,98 @@ class BaseAgent:
         """Return all tools available to this agent, combining base and custom tools."""
         return self._get_base_tools() + self._custom_tools
 
-    def add_tool(self, tool: Dict[str, Any]) -> None:
-        """Add a new tool to the agent's toolkit."""
+    def add_tool(self, tool_config: Dict[str, Any]) -> None:
+        """Add a new tool to the agent's toolkit with its corresponding function.
+        
+        Args:
+            tool_config (Dict[str, Any]): Tool configuration dictionary containing:
+                - "tool": The OpenAI tool configuration
+                - "function": The callable implementation
+                
+        Example:
+            agent.add_tool({
+                "tool": {
+                    "type": "function",
+                    "function": {
+                        "name": "search_database",
+                        "description": "Search the database",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string"}
+                            }
+                        }
+                    }
+                },
+                "function": search_database_fn
+            })
+        """
+        if not isinstance(tool_config, dict) or "tool" not in tool_config or "function" not in tool_config:
+            raise ValueError(
+                "Tool config must be a dictionary with 'tool' and 'function' keys. "
+                "The 'tool' key should contain the OpenAI tool configuration, "
+                "and the 'function' key should contain the callable implementation."
+            )
+                
+        tool = tool_config["tool"]
+        func = tool_config["function"]
+        
         # Validate tool has required properties
         if "function" not in tool or "name" not in tool["function"]:
-            raise ValueError("Tool must have a 'function' property with a 'name' field")
-            
+            raise ValueError("Tool configuration must have a 'function' property with a 'name' field")
+                
         # Check if tool with same name already exists
         tool_name = tool["function"]["name"]
+        if tool_name in ["chat_with_agent", "contact_human"]:
+            raise ValueError(f"Tool name '{tool_name}' is reserved for base tools")
+                
         if any(t.get("function", {}).get("name") == tool_name for t in self.tools):
-            raise ValueError(
-                f"Tool with name '{tool_name}' already exists. Please note that "
-                "'chat_with_agent' and 'contact_human' are predefined tools and can't be modified."
-            )
+            raise ValueError(f"Tool with name '{tool_name}' already exists")
+                
+        # Validate function is callable
+        if not callable(func):
+            raise ValueError(f"Function provided for tool '{tool_name}' must be callable")
+                
+        # Add tool and its function
         self._custom_tools.append(tool)
+        self._custom_functions[tool_name] = func
         print(f"Tool '{tool_name}' added to toolkit")
 
-    def remove_tool(self, tool_name: str) -> None:
-        """Remove a tool from the agent's toolkit by name.
-        Note: Cannot remove base tools."""
+    def remove_tool(self, tool_name: str) -> Dict[str, Any]:
+        """Remove a tool and its function from the agent's toolkit by name.
+        
+        Args:
+            tool_name (str): Name of the tool to remove
+            
+        Returns:
+            Dict[str, Any]: The removed tool configuration containing both the tool and its function
+            
+        Raises:
+            ValueError: If tool doesn't exist or is a base tool
+        """
         if tool_name in ["chat_with_agent", "contact_human"]:
             raise ValueError(f"Cannot remove base tool '{tool_name}'")
-            
-        # Find tool index to avoid multiple list traversals
-        tool_names = [t.get("function", {}).get("name") for t in self._custom_tools]
-        try:
-            tool_index = tool_names.index(tool_name)
-            self._custom_tools.pop(tool_index)
-            print(f"Tool '{tool_name}' removed from toolkit")
-        except ValueError:
+                
+        # Find tool index
+        tool_index = None
+        for i, tool in enumerate(self._custom_tools):
+            if tool.get("function", {}).get("name") == tool_name:
+                tool_index = i
+                break
+                
+        if tool_index is None:
             raise ValueError(f"Tool '{tool_name}' not found in toolkit")
+                
+        # Remove and return both tool and function
+        removed_tool = self._custom_tools.pop(tool_index)
+        removed_function = self._custom_functions.pop(tool_name)
+                
+        print(f"Tool '{tool_name}' removed from toolkit")
+                
+        return {
+            "tool": removed_tool,
+            "function": removed_function
+        }
 
     def prompt_message(self) -> str:
         """Return a prompt message for the agent."""
@@ -401,6 +483,7 @@ class BaseAgent:
             available_functions = {
                 "chat_with_agent": self.chat_with_agent,
                 "contact_human": self.contact_human,
+                **self._custom_functions  # Add custom functions to available functions
             }
             
             for tool_call in tool_calls:
