@@ -382,7 +382,7 @@ class BaseAgent:
                     function_response = function_to_call(**function_args)
                 except Exception as e:
                     print(f"Error calling function {function_name}: {e}")
-                    pass
+                    continue
 
                 func_resp = ""
                 # make one str from the function_response list of str
