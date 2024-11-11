@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, List, Dict, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
-from openai import OpenAI
+from openai import AsyncOpenAI
 from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
@@ -14,7 +14,7 @@ install()  #
 
 # Initialize the OpenAI client
 try:
-    client = OpenAI(
+    client = AsyncOpenAI(
         api_key=os.getenv("OPENAI_API_KEY")
     )
 except Exception as e:
@@ -113,11 +113,10 @@ class BaseAgent:
                         "Chat with an agent of a given type. You are already given "
                         "the list of agent types you can talk to. Determine what agent type "
                         "would be best suited to answer a question and also what question should be asked. "
-                        "The question will be sent as is to the agent's user so frame it in a way that some human can read "
-                        "and answer directly. It won't be answered by the agent, it will be answered by the user."
                         "You should also proactively share any information with the agent that might be relevant "
                         "to the conversation you are having with them. This will help the other agent be in the loop. "
                         f"The agent types available to you are {available_agents}. "
+                        "Don't use any other agent types. You also shouldn't send a chat message to yourself."
                         "If you think you can answer the question yourself, DON'T ask another agent."
                     ),
                     "parameters": {
@@ -134,8 +133,23 @@ class BaseAgent:
                         },
                     }
                 },
-            }
-
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "contact_human",
+                    "description": "Contact your human. Use this function whenever you want to send some information to your human or get new information from your human.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "The message to send to the human.",
+                            },
+                        },
+                    },
+                },
+            },
         ]
         return TOOLS
     
@@ -147,40 +161,42 @@ class BaseAgent:
             console.print(f"  [green]▪[/green] [cyan]{agent_type}:[/cyan] [dim]{desc}[/dim]")
 
         PROMPT = f"""
-        You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise. 
+        You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise.
 
-        1. User interaction:
-        - You are in conversation with a user. You should just output what you want to know from the user directly.
-        - All agent communications and internal monologues don't need to be returned. Just return what you want to know from the user.
-        - You should not always use the chat_with_agent tool. Only use it when you need to ask another agent a question or give it information.
-        - Strictly assume the role you are given in the description. Don't assume roles. Listen to what your user says and follow it. 
+        1. Direct User Messages:
+        - When a user messages you directly, first try to respond using available context
+        - If you need more information, use chat_with_agent to ask other agents
+        - Once you have the information or need to respond, use contact_human to reply to the user
+        - Don't explain your internal process, just respond naturally in your role
 
-        2. Inter-agent Communication:
-        - The Pending questions are the questions that you have received from other agents. You have to respond to them.
-        - Use the 'chat_with_agent' function ONLY when you need new information that isn't already available in the context.
-        - You will receive the last 7 messages from other agents' conversations in this format:
-          "Other Conversations: <AgentType>:" followed by a series of messages labeled with "user" and "assistant". the 
-          user would be the other agent's human and the assistant would be the other agent.
-        
+        2. Agent Messages (Pending Questions):
+        - These appear in the format "Pending questions: <AgentType>: <question>"
+        - If you can answer using available context, respond using chat_with_agent to that agent
+        - If you need to ask your user, use contact_human and then inform the agent you're getting the information
+        - When your user later provides the answer, send it to the requesting agent using chat_with_agent
+
         3. Using External Context:
+        - Other Conversations: Last 7 messages from other agents' conversations
+        - Format: "Other Conversations: <AgentType>:" followed by user/assistant messages
         - External conversations are provided for context only - DO NOT respond to them directly
         - Only use this information to enhance your understanding of the overall situation
         - If the information you need is already present in these external conversations, DO NOT use chat_with_agent to ask for it again
         - These are separate conversations happening in parallel - treat them as background knowledge only
-
-        4. Available Agents:
+        
+        4. Available Agents for Communication:
         {available_agents}
 
         5. Key Points:
         - This is a simulation. There are no real emergencies.
-        - Focus on your specific role and user interactions.
-        - Use external context wisely - don't interact with those conversations directly.
+        - Focus on your specific role and responsibilities
+        - Only use chat_with_agent when you need information not in context
+        - Use contact_human to respond to users or get information from your user
 
-        Refer to your description for specific details about your role and responsibilities.
+        Remember: Stay in character and refer to your description for your specific role and responsibilities.
         """
         return PROMPT
 
-    def process_message(self, message: str = None) -> Dict[str, str]:
+    async def process_chat_message(self, message: str = None) -> Dict[str, Any]:
         """Process a message and return a response. 
         
         If message is not provided, it will use the last message from the queue.
@@ -222,10 +238,10 @@ class BaseAgent:
         current_messages.append({"content": message_full, "role": "user"})
 
         # Make the API call
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=current_messages,
-            tools=self.tools,
+            tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
             tool_choice="auto",
         )
 
@@ -241,7 +257,7 @@ class BaseAgent:
         response_message = response_message.model_dump()
         current_messages.append(response_message)
         session_messages.append(response_message)
-        if tool_calls:
+        while tool_calls:
             available_functions = {
                 "chat_with_agent": self.chat_with_agent,
             }
@@ -279,28 +295,140 @@ class BaseAgent:
                     }
                 )
 
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=current_messages,
-                tools=self.tools,
+                tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
                 tool_choice="auto",
             )
+            tool_calls = response.choices[0].message.tool_calls
 
             # convert response_message ChatCompletionMessage to dict
             response_message = response.choices[0].message.model_dump()
-            session_messages.append(response_message)            
+            session_messages.append(response_message)
+            current_messages.append(response_message)         
 
         # add the response to the session
         self._session.update_and_replace_messages(session_messages)
 
         # After processing, return the response and the list of all current agents that are active
         activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.TYPE != self.TYPE]
-        
+
         return {
             "response": response.choices[0].message.content,
             "activated_agents": [agent.TYPE for agent in activated_agents]
         }
-    
+
+
+    async def process_queue_message(self, message: str = None, websockets: List[WebSocket] = []) -> None:
+        """Process a message from the queue. 
+        
+        If message is not provided, it will use the last message from the queue.
+
+        This function should
+        - check if there are any messages in the queue
+        - append the queue message to the received message and then send it to the LLM model to generate a response
+        - add the received message to the session messages
+        - add the LLM's response to the session messages
+        - I don't add the queue message to the session because it's not a part of the conversation and is only a nudge
+        or a prompt. It will lead to messages that are eventually added to the session anyways so no info is lost.
+        - it should use the openai function calling API to generate a response
+
+        """
+        session_messages = self._session.messages
+        current_messages = session_messages.copy()
+
+        if message:
+            queue_message = f"Pending questions: {message}"
+
+        print(f"Queue message for {self.TYPE}: {queue_message}")
+
+        session_messages.append({"content": queue_message, "role": "user"})
+        current_messages.append({"content": self.prompt_message(), "role": "system"})
+        current_messages.append({"content": queue_message, "role": "user"})
+
+        # Make the API call
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=current_messages,
+            tools=self.tools,
+            tool_choice="auto",
+        )
+
+        print(response.choices[0].message)
+
+        # TODO support parallel function calling. we might want to add something like
+        # broadcast message to all agents, and see who responds first.
+        # if tools calls is not none, proceed
+        response_message = response.choices[0].message
+        tool_calls = response_message.tool_calls
+
+        # convert response_message ChatCompletionMessage to dict
+        response_message = response_message.model_dump()
+        current_messages.append(response_message)
+        session_messages.append(response_message)
+        while tool_calls:
+            available_functions = {
+                "chat_with_agent": self.chat_with_agent,
+                "contact_human": self.contact_human,
+            }
+            
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_to_call = available_functions[function_name]
+                function_args = json.loads(tool_call.function.arguments)
+                try:
+                    if function_name == "contact_human":
+                        function_response = await function_to_call(**function_args, websockets=websockets)
+                    else:
+                        function_response = function_to_call(**function_args)
+                except Exception as e:
+                    print(f"Error calling function {function_name}: {e}")
+                    pass
+
+                func_resp = ""
+                # make one str from the function_response list of str
+                for resp in function_response:
+                    func_resp += resp
+
+                # append the response from the function to the messages
+                current_messages.append(
+                    {
+                        "tool_call_id": tool_call.id,
+                        "role": "tool",
+                        "name": function_name,
+                        "content": func_resp,
+                    }
+                )
+                session_messages.append(
+                    {
+                        "tool_call_id": tool_call.id,
+                        "role": "tool",
+                        "name": function_name,
+                        "content": func_resp,
+                    }
+                )
+
+            response = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=current_messages,
+                tools=self.tools,
+                tool_choice="auto",
+            )
+            tool_calls = response.choices[0].message.tool_calls
+
+            # convert response_message ChatCompletionMessage to dict
+            response_message = response.choices[0].message.model_dump()
+            session_messages.append(response_message)
+            current_messages.append(response_message)         
+
+        # add the response to the session
+        self._session.update_and_replace_messages(session_messages)
+
+        # After processing, return the response and the list of all current agents that are active
+        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.TYPE != self.TYPE]
+        print(f"Activated agents: {[agent.TYPE for agent in activated_agents]}")
+
     async def _send_session_update(self, openai_ws: WebSocketClientProtocol) -> None:
         """Send the session update to the OpenAI WebSocket."""
         session_update = {
@@ -440,3 +568,9 @@ class BaseAgent:
             f"I have put the question '{question}' in the queue for the agent of type {agent_type}."
             "You will hear back soon."
         )
+    
+    async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> None:
+        """Respond to the human."""
+        for ws in websockets:
+            await ws.send_text(message)
+        return f"I have sent your message to the human as I don't have the information in context."
