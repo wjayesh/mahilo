@@ -50,6 +50,11 @@ class BaseAgent:
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
+        # validate if the tool names supplied are not already taken
+        if tools:
+            for tool in tools:
+                if tool["function"]["name"] in ["chat_with_agent", "contact_human"]:
+                    raise ValueError(f"Tool with name '{tool['function']['name']}' cannot be used as it is a base tool.")
         self._custom_tools = tools or []
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
