@@ -96,9 +96,10 @@ tools = [
 ]
 
 class BuyerAgent(BaseAgent):
-    def __init__(self, buyer_preferences: str, type: str = "buyer_agent", can_contact: List[str] = []):
+    def __init__(self, buyer_preferences: str, name: str = None, can_contact: List[str] = []):
         super().__init__(
-            type=type,
+            name=name,
+            type="buyer_agent",
             description=BUYER_AGENT_PROMPT + "\n\n" + buyer_preferences,
             short_description=BUYER_AGENT_SHORT_DESCRIPTION,
             tools=tools,
