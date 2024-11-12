@@ -14,7 +14,7 @@ def main(agent_names):
     # create and register agents
     agents = []
     for name in agent_names:
-        agent = StoryWeaverAgent(type=f'{name}_weaver')
+        agent = StoryWeaverAgent(name=f'{name}_weaver')
         manager.register_agent(agent)
         agents.append(agent)
     
