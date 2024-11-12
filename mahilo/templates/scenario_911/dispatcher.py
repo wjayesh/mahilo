@@ -36,6 +36,7 @@ class EmergencyDispatcher(BaseAgent):
     def __init__(self):
         super().__init__(
             type='emergency_dispatcher',
+            name='emergency_dispatcher',
             description=EMERGENCY_DISPATCHER_PROMPT,
             short_description=EMERGENCY_DISPATCHER_SHORT_DESCRIPTION,
         )

@@ -32,6 +32,7 @@ class MedicalProxyAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             type='medical_proxy',
+            name='medical_proxy',
             description=MEDICAL_PROXY_PROMPT,
             can_contact=["emergency_dispatcher"],
             short_description=MEDICAL_PROXY_SHORT_DESCRIPTION,
