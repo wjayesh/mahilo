@@ -1,6 +1,6 @@
 # Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
-## 🎉 NEW: OpenAI Realtime API now available with mahilo!
+## 🎉 OpenAI Realtime API available with mahilo!
 
 You can now use voice to interact with your mahilo agents, powered by the OpenAI Realtime API!
 Here's a blog on how I built this feature, with technical details: [Building a voice-enabled Python FastAPI app using OpenAI's Realtime API](https://medium.com/thedeephub/building-a-voice-enabled-python-fastapi-app-using-openais-realtime-api-bfdf2947c3e4)
