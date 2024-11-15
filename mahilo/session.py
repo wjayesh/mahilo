@@ -19,15 +19,15 @@ class Session:
     - User messages
     - Agent messages
     """
-    def __init__(self, agent_type: str, server_id: str = None):
-        self.agent_id = agent_type
+    def __init__(self, agent_name: str, server_id: str = None):
+        self.agent_name = agent_name
         self.messages: List[Dict[str, str]] = []
         
         # Create a unique directory for each server instance
         self.server_dir = f"sessions/{server_id}" if server_id else "sessions"
         Path(self.server_dir).mkdir(parents=True, exist_ok=True)
         
-        self.file_path = os.path.join(self.server_dir, f"{agent_type}.json")
+        self.file_path = os.path.join(self.server_dir, f"{agent_name}.json")
         self.load_messages()
 
     def load_messages(self):

@@ -30,6 +30,7 @@ class PoliceProxyAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             type='police_proxy',
+            name='police_proxy',
             description=POLICE_PROXY_PROMPT,
             can_contact=["emergency_dispatcher"],
             short_description=POLICE_PROXY_SHORT_DESCRIPTION,

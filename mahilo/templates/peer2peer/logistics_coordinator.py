@@ -25,5 +25,6 @@ class LogisticsCoordinator(BaseAgent):
     def __init__(self):
         super().__init__(
             type='logistics_coordinator',
+            name='logistics_coordinator',
             description=LOGISTICS_COORDINATOR_PROMPT,
         )

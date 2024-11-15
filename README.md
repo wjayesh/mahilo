@@ -67,7 +67,7 @@ When the code above is run, it starts a websocket server on localhost (unless so
 For example, to do that for one agent, you can run the following command in a separate terminal (from the root of this repo):
 
 ```
-python mahilo/client.py --url http://localhost:8000 --agent-type emergency_dispatcher
+python mahilo/client.py --url http://localhost:8000 --agent-name emergency_dispatcher
 ```
 
 This would then allow you to talk to the emergency dispatcher agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
@@ -150,14 +150,14 @@ More information on the features can be found in the [Detailed Features](#detail
    For each of the agents in the system, you can spin up a client to connect to the server.
    ```
    cd mahilo
-   python client.py --url http://localhost:8000 --agent-type your_agent_type
+   python client.py --url http://localhost:8000 --agent-name your_agent_name
    ```
    Run this command in separate terminals for each of the agents and you can then start talking with them.
 
    If you want to use the voice feature, you can run the same command with the `--voice` flag:
    ```
    cd mahilo
-   python client.py --url http://localhost:8000 --agent-type your_agent_type --voice
+   python client.py --url http://localhost:8000 --agent-name your_agent_name --voice
    ```
 
 
@@ -177,14 +177,14 @@ More information on the features can be found in the [Detailed Features](#detail
 
 4. Connect to your server using the CLI client:
    ```
-   python mahilo/client.py --url http://localhost:8000 --agent-type your_agent_type
+   python mahilo/client.py --url http://localhost:8000 --agent-name your_agent_name
    ```
    You can connect to the same server using multiple clients to test the system with multiple users. This is useful for testing the system in a real-world scenario where multiple agents need to coordinate their actions.
 
    If you want to use the voice feature, you can run the same command with the `--voice` flag:
    ```
    cd mahilo
-   python client.py --url http://localhost:8000 --agent-type your_agent_type --voice
+   python client.py --url http://localhost:8000 --agent-name your_agent_name --voice
    ```
 
 > [!TIP]
@@ -207,7 +207,7 @@ More information on the features can be found in the [Detailed Features](#detail
 - [Easy-to-use agent definition system](#easy-to-use-agent-definition-system)
 - [WebSocket-based real-time communication](#websocket-based-real-time-communication)
 - [Flexible communication patterns: peer-to-peer and hierarchical (or centralized)](#flexible-communication-patterns-peer-to-peer-and-hierarchical-or-centralized)
-- [Flexible agent manager for handling multiple agent types](#flexible-agent-manager-for-handling-multiple-agent-types)
+- [Flexible agent manager for handling multiple agent types](#flexible-agent-manager-for-handling-multiple-agent-names)
 - [Session management for persistent conversations](#session-management-for-persistent-conversations)
 
 ### Human-in-the-Loop

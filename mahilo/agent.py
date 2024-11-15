@@ -41,6 +41,7 @@ class BaseAgent:
     to make the agent aware of the other agents.
     """
     TYPE: str = "Base"
+    name: str = None
     _agent_manager: "AgentManager"
     _queue: List[str]
     _session: Optional[Session] = None
@@ -48,11 +49,12 @@ class BaseAgent:
     short_description: str = None
     can_contact: List[str] = []
 
-    def __init__(self, type: str, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
+    def __init__(self, type: str, name: str = None, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
         """Initialize a BaseAgent.
         
         Args:
-            type (str): The type of agent
+            type (str): The type of agent (e.g. "story_weaver")
+            name (str, optional): Unique name for this agent instance
             description (str, optional): Long description of the agent
             can_contact (List[str], optional): List of agent types this agent can contact
             short_description (str, optional): Brief description of the agent
@@ -64,6 +66,7 @@ class BaseAgent:
             ToolFunctionError: If any tool configuration or function is invalid
         """
         self.TYPE = type
+        self.name = name or f"{type}_{id(self)}"  # Default to type_uniqueid if no name given
         self._queue = []
         self.description = description
         self.can_contact = can_contact
@@ -86,8 +89,16 @@ class BaseAgent:
 
     # make a function that returns the list of agents with their descriptions that this agent can contact
     def get_contactable_agents_with_description(self) -> Dict[str, str]:
-        all_available_agents_with_description = self._agent_manager.get_agent_types_with_description()
-        return {agent_type: description for agent_type, description in all_available_agents_with_description.items() if agent_type in self.can_contact and agent_type != self.TYPE}
+        """Return a dict of contactable agent names with their descriptions."""
+        all_available_agents_with_description = {
+            agent.name: agent.short_description 
+            for agent in self._agent_manager.get_all_agents()
+        }
+        return {
+            name: desc 
+            for name, desc in all_available_agents_with_description.items() 
+            if name in self.can_contact and name != self.name
+        }
 
 
     @property
@@ -111,16 +122,16 @@ class BaseAgent:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "agent_type": {
+                        "agent_name": {
                             "type": "string",
-                            "description": "The type of agent to ask the question to.",
+                            "description": "The name of the agent to ask the question to.",
                         },
                         "question": {
                             "type": "string",
-                            "description": "The question to ask the agent. This question will be sent directly to the agent's user, frame it in a way that the user can answer directly.",
+                            "description": "The question to ask the agent.",
                         },
                     },
-                    "required": ["agent_type", "question"],
+                    "required": ["agent_name", "question"],
                 }
             },
         ]
@@ -136,21 +147,18 @@ class BaseAgent:
                 "function": {
                     "name": "chat_with_agent",
                     "description": (
-                        "Chat with an agent of a given type. You are already given "
-                        "the list of agent types you can talk to. Determine what agent type "
+                        "Chat with an agent by their name. You are already given "
+                        "the list of agent names you can talk to. Determine what agent "
                         "would be best suited to answer a question and also what question should be asked. "
-                        "You should also proactively share any information with the agent that might be relevant "
-                        "to the conversation you are having with them. This will help the other agent be in the loop. "
-                        f"The agent types available to you are {available_agents}. "
-                        "Don't use any other agent types. You also shouldn't send a chat message to yourself."
-                        "If you think you can answer the question yourself, DON'T ask another agent."
+                        f"The agent names available to you are {available_agents}. "
+                        "Don't use any other agent names. You also shouldn't send a chat message to yourself."
                     ),
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "agent_type": {
+                            "agent_name": {
                                 "type": "string",
-                                "description": "The type of agent to ask the question to.",
+                                "description": "The name of the agent to ask the question to.",
                             },
                             "question": {
                                 "type": "string",
@@ -430,11 +438,11 @@ class BaseAgent:
         self._session.update_and_replace_messages(session_messages)
 
         # After processing, return the response and the list of all current agents that are active
-        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.TYPE != self.TYPE]
+        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.name != self.name]
 
         return {
             "response": response.choices[0].message.content,
-            "activated_agents": [agent.TYPE for agent in activated_agents]
+            "activated_agents": [agent.name for agent in activated_agents]
         }
 
 
@@ -554,8 +562,8 @@ class BaseAgent:
         self._session.update_and_replace_messages(session_messages)
 
         # After processing, return the response and the list of all current agents that are active
-        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.TYPE != self.TYPE]
-        print(f"Activated agents: {[agent.TYPE for agent in activated_agents]}")
+        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.name != self.name]
+        print(f"Activated agents: {[agent.name for agent in activated_agents]}")
 
     async def _send_session_update(self, openai_ws: WebSocketClientProtocol) -> None:
         """Send the session update to the OpenAI WebSocket."""
@@ -683,17 +691,20 @@ class BaseAgent:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
 
-    def chat_with_agent(self, agent_type: str, question: str) -> str:
-        """Chat with the agent of the given type."""
-        agent = self._agent_manager.get_agent(agent_type)
+    def chat_with_agent(self, agent_name: str, question: str) -> str:
+        """Chat with the agent of the given name."""
+        agent = self._agent_manager.get_agent(agent_name)
+        if not agent:
+            return f"Error: Agent with name '{agent_name}' not found"
+        
         # if agent is not active, activate it
         if not agent.is_active():
             agent.activate()
         # add the question to the agent's queue
-        agent.add_message_to_queue(question, self.TYPE)
+        agent.add_message_to_queue(question, self.name)
 
         return (
-            f"I have put the question '{question}' in the queue for the agent of type {agent_type}."
+            f"I have put the question '{question}' in the queue for the agent named {agent_name}. "
             "You will hear back soon."
         )
     

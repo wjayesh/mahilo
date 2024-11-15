@@ -26,5 +26,6 @@ class PublicCommunicationsDirector(BaseAgent):
     def __init__(self):
         super().__init__(
             type='public_communications_director',
+            name='public_communications_director',
             description=PUBLIC_COMMUNICATIONS_DIRECTOR_PROMPT,
         )

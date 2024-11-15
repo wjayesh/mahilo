@@ -41,13 +41,13 @@ An image showing how the agents that talk to the humans add to their productivit
 
 5. Connect to your server using the CLI client:
    ```
-   python client.py --url http://localhost:8000 --agent-type medical_advisor
+   python client.py --url http://localhost:8000 --agent-name medical_advisor
    ```
 
    You can connect to the same server using multiple clients to interact with different agents in the system. For example:
    ```
-   python client.py --url http://localhost:8000 --agent-type logistics_coordinator
-   python client.py --url http://localhost:8000 --agent-type public_communications_director
+   python client.py --url http://localhost:8000 --agent-name logistics_coordinator
+   python client.py --url http://localhost:8000 --agent-name public_communications_director
    ```
 
 > [!TIP]

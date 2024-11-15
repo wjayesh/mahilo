@@ -71,9 +71,10 @@ Remember: Ask one question at a time to help story build naturally bizzare, neve
 STORY_WEAVER_SHORT_DESCRIPTION = "An imaginative guide helping humans create wild stories that occasionally crash into each other."
 
 class StoryWeaverAgent(BaseAgent):
-    def __init__(self, type: str = 'story_weaver'):
+    def __init__(self, name: str = None, type: str = 'story_weaver'):
         super().__init__(
             type=type,
+            name=name,
             description=STORY_WEAVER_PROMPT,
             short_description=STORY_WEAVER_SHORT_DESCRIPTION,
         ) 

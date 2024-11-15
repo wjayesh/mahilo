@@ -9,9 +9,9 @@ import json
 import threading
 
 class Client:
-    def __init__(self, url: str, agent_type: Optional[str] = None, voice: bool = False):
+    def __init__(self, url: str, agent_name: Optional[str] = None, voice: bool = False):
         self.base_url = url
-        self.agent_type = agent_type
+        self.agent_name = agent_name
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
         self.audio = pyaudio.PyAudio()
         self.stream = None
@@ -21,9 +21,9 @@ class Client:
 
     async def connect(self):
         if self.voice:
-            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/voice-stream/{self.agent_type}"
+            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/voice-stream/{self.agent_name}"
         else:
-            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_type or 'main'}"
+            websocket_url = f"ws://{self.base_url.split('://')[-1]}/ws/{self.agent_name or 'main'}"
         print(f"Connecting to {websocket_url}")
         self.websocket = await websockets.connect(websocket_url)
         asyncio.create_task(self._listen())
@@ -44,11 +44,11 @@ class Client:
                         rich.print(f"[bold green]🎵  Received audio data[/bold green] ([italic]{len(audio_data)} bytes[/italic])")
                         self._play_audio(audio_data)
                     else:
-                        rich.print(f"[bold magenta]{self.agent_type or 'Agent'}:[/bold magenta] {message}")
+                        rich.print(f"[bold magenta]{self.agent_name or 'Agent'}:[/bold magenta] {message}")
                 else:
-                    rich.print(f"[bold magenta]{self.agent_type or 'Agent'}:[/bold magenta] {message}")
+                    rich.print(f"[bold magenta]{self.agent_name or 'Agent'}:[/bold magenta] {message}")
         except websockets.ConnectionClosed:
-            rich.print(f"[bold red]⚠️  Connection to {self.agent_type} closed[/bold red]")
+            rich.print(f"[bold red]⚠️  Connection to {self.agent_name} closed[/bold red]")
 
     async def send_message(self, message: str):
         if self.websocket:
@@ -110,7 +110,7 @@ async def run_client(client: Client):
             message = await asyncio.get_event_loop().run_in_executor(
                 None, 
                 input,
-                f"Enter message for {client.agent_type or 'main agent'} (or 'quit' to exit): "
+                f"Enter message for {client.agent_name or 'main agent'} (or 'quit' to exit): "
             )
             if message.lower() == 'quit':
                 break
@@ -119,11 +119,11 @@ async def run_client(client: Client):
 
 @click.command()
 @click.option('--url', default='http://localhost:8000', help='Server URL')
-@click.option('--agent-type', required=True, help='Agent type to connect to')
+@click.option('--agent-name', required=True, help='Name of the agent to connect to')
 @click.option('--voice', is_flag=True, help='Enable voice', default=False)
-def cli(url: str, agent_type: Optional[str], voice: bool):
+def cli(url: str, agent_name: Optional[str], voice: bool):
     """CLI for connecting to the multi-agent server."""
-    client = Client(url, agent_type, voice)
+    client = Client(url, agent_name, voice)
     asyncio.run(run_client(client))
 
 if __name__ == "__main__":

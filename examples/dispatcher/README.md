@@ -34,7 +34,7 @@ This is a simple multi-agent dispatcher that can be used to dispatch tasks to mu
 
 5. Connect to your server using the CLI client:
    ```
-   python client.py --url http://localhost:8000 --agent-type dispatcher
+   python client.py --url http://localhost:8000 --agent-name dispatcher
    ```
    You can connect to the same server using multiple clients to test the system in a real-world scenario where multiple agents need to coordinate their actions.
 

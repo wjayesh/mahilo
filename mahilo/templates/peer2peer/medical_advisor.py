@@ -24,5 +24,6 @@ class MedicalAdvisor(BaseAgent):
     def __init__(self):
         super().__init__(
             type='medical_advisor',
+            name='medical_advisor',
             description=MEDICAL_ADVISOR_PROMPT,
         )

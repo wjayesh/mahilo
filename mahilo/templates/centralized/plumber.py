@@ -31,5 +31,6 @@ class Plumber(BaseAgent):
     def __init__(self):
         super().__init__(
             type='plumber',
+            name='plumber',
             description=PLUMBER_PROMPT,
         )

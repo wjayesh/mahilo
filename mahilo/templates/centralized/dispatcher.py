@@ -29,5 +29,6 @@ class Dispatcher(BaseAgent):
     def __init__(self):
         super().__init__(
             type='dispatcher',
+            name='dispatcher',
             description=DISPATCHER_PROMPT,
         )

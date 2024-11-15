@@ -32,5 +32,6 @@ class MoldSpecialist(BaseAgent):
     def __init__(self):
         super().__init__(
             type='mold_specialist',
+            name='mold_specialist',
             description=MOLDSPECIALIST_PROMPT,
         )   
