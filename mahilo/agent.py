@@ -304,7 +304,7 @@ class BaseAgent:
         """
         return PROMPT
 
-    async def process_chat_message(self, message: str = None) -> Dict[str, Any]:
+    async def process_chat_message(self, message: str = None, websockets: List[WebSocket] = []) -> Dict[str, Any]:
         """Process a message and return a response. 
         
         If message is not provided, it will use the last message from the queue.
@@ -364,6 +364,7 @@ class BaseAgent:
         while tool_calls:
             available_functions = {
                 "chat_with_agent": self.chat_with_agent,
+                "contact_human": self.contact_human, # just in case the model chooses this
                 **self._custom_functions  # Add custom functions to available functions
             }
             
@@ -372,7 +373,18 @@ class BaseAgent:
                 function_to_call = available_functions[function_name]
                 function_args = json.loads(tool_call.function.arguments)
                 try:
-                    function_response = function_to_call(**function_args)
+                    if function_name == "contact_human":
+                        function_response = await function_to_call(**function_args, websockets=websockets)
+                    else:
+                        function_response = function_to_call(**function_args)
+                        # Convert responses to appropriate string format
+                        if isinstance(function_response, dict):
+                            function_response = json.dumps(function_response)
+                        elif isinstance(function_response, list):
+                            function_response = [
+                                json.dumps(item) if isinstance(item, dict) else str(item)
+                                for item in function_response
+                            ]
                 except Exception as e:
                     print(f"Error calling function {function_name}: {e}")
                     continue
@@ -401,11 +413,12 @@ class BaseAgent:
                 )
 
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=current_messages,
                 tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
                 tool_choice="auto",
             )
+            print(response.choices[0].message)
             tool_calls = response.choices[0].message.tool_calls
 
             # convert response_message ChatCompletionMessage to dict
@@ -460,7 +473,7 @@ class BaseAgent:
             tool_choice="auto",
         )
 
-        print(response.choices[0].message)
+        print("In queue fn:", response.choices[0].message)
 
         # TODO support parallel function calling. we might want to add something like
         # broadcast message to all agents, and see who responds first.
@@ -488,9 +501,17 @@ class BaseAgent:
                         function_response = await function_to_call(**function_args, websockets=websockets)
                     else:
                         function_response = function_to_call(**function_args)
+                        # Convert responses to appropriate string format
+                        if isinstance(function_response, dict):
+                            function_response = json.dumps(function_response)
+                        elif isinstance(function_response, list):
+                            function_response = [
+                                json.dumps(item) if isinstance(item, dict) else str(item)
+                                for item in function_response
+                            ]
                 except Exception as e:
                     print(f"Error calling function {function_name}: {e}")
-                    pass
+                    continue
 
                 func_resp = ""
                 # make one str from the function_response list of str
@@ -516,11 +537,12 @@ class BaseAgent:
                 )
 
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=current_messages,
                 tools=self.tools,
                 tool_choice="auto",
             )
+            print("In queue fn:", response.choices[0].message)
             tool_calls = response.choices[0].message.tool_calls
 
             # convert response_message ChatCompletionMessage to dict
@@ -699,18 +721,20 @@ class BaseAgent:
         return_type = get_type_hints(func).get('return')
         if return_type is None:
             raise ToolFunctionError(
-                f"Tool function '{tool_name}' must have a return type hint of str or List[str]"
+                f"Tool function '{tool_name}' must have a return type hint of str, List[str], Dict, or List[Dict]"
             )
 
         # Validate return type
-        valid_return_types = (str, List[str])
+        valid_return_types = (str, List[str], Dict, dict, List[Dict], List[dict])
         if return_type not in valid_return_types and not (
             hasattr(return_type, "__origin__") and 
-            return_type.__origin__ is list and 
-            return_type.__args__[0] is str
+            (
+                (return_type.__origin__ is list and return_type.__args__[0] in (str, Dict, dict)) or
+                (return_type.__origin__ is dict)
+            )
         ):
             raise ToolFunctionError(
-                f"Tool function '{tool_name}' must return str or List[str], "
+                f"Tool function '{tool_name}' must return str, List[str], Dict, or List[Dict], "
                 f"got {return_type}"
             )
 

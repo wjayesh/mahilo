@@ -106,7 +106,7 @@ class ServerManager:
                         self.console.print(f"[bold yellow]⚠️  Agent[/bold yellow] [green]{agent_type}[/green] [bold yellow]is not active[/bold yellow]")
                         await websocket.send_text(f"Agent {agent_type} is not active.")
                         continue
-                    response = await agent.process_chat_message(data)
+                    response = await agent.process_chat_message(data, websockets=[websocket])
                     await websocket.send_text(response["response"])
             except WebSocketDisconnect:
                 self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent type: [green]{agent_type}[/green]")
