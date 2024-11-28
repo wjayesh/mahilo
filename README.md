@@ -1,5 +1,17 @@
 # Mahilo: Multi-Agent with Human-in-the-Loop System Framework
 
+  [![PyPi][pypiversion-shield]][pypi-url]
+  [![PyPi][downloads-shield]][downloads-url]
+  [![License][license-shield]][license-url]
+
+  [pypi-url]: https://pypi.org/project/mahilo/
+  [pypiversion-shield]: https://img.shields.io/pypi/v/mahilo
+  [downloads-shield]: https://img.shields.io/pypi/dm/mahilo
+  [downloads-url]: https://pypi.org/project/mahilo/
+  [license-shield]: https://img.shields.io/github/license/wjayesh/mahilo?color=9565F6
+  [license-url]: https://github.com/wjayesh/mahilo/blob/main/LICENSE
+
+
 ## 🎉 OpenAI Realtime API available with mahilo!
 
 You can now use voice to interact with your mahilo agents, powered by the OpenAI Realtime API!
