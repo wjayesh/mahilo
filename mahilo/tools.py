@@ -4,7 +4,7 @@ from .registry import GlobalRegistry
 def get_chat_with_agent_tool() -> Callable:
     """Get the chat_with_agent tool that can be bound to LLMs."""
 
-    def chat_with_agent(agent_name: str, question: str) -> str:
+    def chat_with_agent(agent_name: str, your_name: str, question: str) -> str:
         """Chat with an agent by their name."""
         registry = GlobalRegistry.get_agent_registry()
         if not registry:
@@ -19,7 +19,7 @@ def get_chat_with_agent_tool() -> Callable:
             agent.activate()
             
         # add the question to the agent's queue
-        agent.add_message_to_queue(question, "")
+        agent.add_message_to_queue(question, your_name)
         
         return (
             f"I have put the question '{question}' in the queue for the agent named {agent_name}. "

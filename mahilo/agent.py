@@ -128,12 +128,16 @@ class BaseAgent:
                             "type": "string",
                             "description": "The name of the agent to ask the question to.",
                         },
+                        "your_name": {
+                            "type": "string",
+                            "description": "The name of the agent asking the question, that is you.",
+                        },
                         "question": {
                             "type": "string",
                             "description": "The question to ask the agent.",
                         },
                     },
-                    "required": ["agent_name", "question"],
+                    "required": ["agent_name", "your_name", "question"],
                 }
             },
         ]
@@ -165,6 +169,10 @@ class BaseAgent:
                             "agent_name": {
                                 "type": "string",
                                 "description": "The name of the agent to ask the question to.",
+                            },
+                            "your_name": {
+                                "type": "string",
+                                "description": "The name of the agent asking the question, that is you.",
                             },
                             "question": {
                                 "type": "string",
@@ -283,7 +291,7 @@ class BaseAgent:
             console.print(f"  [green]▪[/green] [cyan]{agent_type}:[/cyan] [dim]{desc}[/dim]")
 
         PROMPT = f"""
-        You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise.
+        You are an AI agent of type {self.TYPE} and name {self.name} in a multi-agent system. Your description is: {self.description}. Keep your responses concise.
 
         1. Direct User Messages:
         - When a user messages you directly, first try to respond using available context
@@ -347,7 +355,7 @@ class BaseAgent:
             session_messages.append({"content": message, "role": "user"})
 
         # get the last 7 messages from all other agents' sessions 
-        other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE, num_messages=7)
+        other_agent_messages = self._agent_manager.get_agent_messages(self.name, num_messages=7)
         message_full = f"{other_agent_messages}"
         if message:
             message_full += f"\n User: {message}"
