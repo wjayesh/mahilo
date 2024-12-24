@@ -9,6 +9,8 @@ from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
 
+from mahilo.tools import get_chat_with_agent_tool
+
 console = Console()
 install()  #
 
@@ -140,7 +142,11 @@ class BaseAgent:
     
     def _get_base_tools(self) -> List[Dict[str, Any]]:
         """Return the base tools that all agents must have."""
-        available_agents = self.get_contactable_agents_with_description()
+        try:
+            available_agents = self.get_contactable_agents_with_description()
+        except AttributeError as e:
+            console.print("[bold red] ⚠️  Agent not registered with AgentManager:[/bold red]")
+            available_agents = {}
         return [
             {
                 "type": "function",
@@ -371,7 +377,7 @@ class BaseAgent:
         session_messages.append(response_message)
         while tool_calls:
             available_functions = {
-                "chat_with_agent": self.chat_with_agent,
+                "chat_with_agent": get_chat_with_agent_tool(),
                 "contact_human": self.contact_human, # just in case the model chooses this
                 **self._custom_functions  # Add custom functions to available functions
             }
@@ -495,7 +501,7 @@ class BaseAgent:
         session_messages.append(response_message)
         while tool_calls:
             available_functions = {
-                "chat_with_agent": self.chat_with_agent,
+                "chat_with_agent": get_chat_with_agent_tool(),
                 "contact_human": self.contact_human,
                 **self._custom_functions  # Add custom functions to available functions
             }
@@ -609,7 +615,7 @@ class BaseAgent:
     async def _send_to_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
         """Send a message to the client."""
         available_functions = {
-            "chat_with_agent": self.chat_with_agent,
+            "chat_with_agent": get_chat_with_agent_tool(),
         }
         try:
             async for openai_message in openai_ws:
