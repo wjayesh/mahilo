@@ -7,3 +7,5 @@ websockets==13.0.1
 pyaudio
 click==8.1.7
 rich==13.9.3
+langgraph==0.2.60
+pydantic-ai==0.0.15

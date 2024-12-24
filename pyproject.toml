@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mahilo"
-version = "0.2.1"
+version = "0.4.0"
 description = " A flexible framework for creating multi-agent systems that can each interact with humans while sharing relevant context internally."
 authors = [{name = "Jayesh Sharma", email = "wjayesh@outlook.com"}]
 readme = "README.md"
@@ -16,6 +16,9 @@ dependencies = [
     "websockets",
     "python-dotenv",
     "pydantic",
+    "rich",
+    "langgraph==0.2.60",
+    "pydantic-ai==0.0.15",
 ]
 
 [project.urls]
