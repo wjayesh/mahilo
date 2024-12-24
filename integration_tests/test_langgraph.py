@@ -12,7 +12,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from mahilo.agent import BaseAgent
 from mahilo.agent_manager import AgentManager
-from mahilo.integrations.langgraph.agent import LanggraphMahiloAgent
+from mahilo.integrations.langgraph.agent import LangGraphAgent
 from mahilo.integrations.langgraph.tools import get_chat_with_agent_tool_langgraph
 from mahilo.server import ServerManager
 
@@ -67,7 +67,7 @@ graph_builder.set_entry_point("chatbot")
 
 # breakpoint()
 
-agent = LanggraphMahiloAgent(
+agent = LangGraphAgent(
     langgraph_agent=graph_builder,
     type="langgraph",
     name="LanggraphAgent",
