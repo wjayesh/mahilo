@@ -36,6 +36,7 @@ class LanggraphMahiloAgent(BaseAgent):
             short_description=short_description
         )
         self._langgraph_agent = langgraph_agent
+        self._thread_id = None
         
         self.compiled_graph = self._langgraph_agent.compile()
 
@@ -44,6 +45,16 @@ class LanggraphMahiloAgent(BaseAgent):
         """Return all tools available to this agent, combining langgraph and mahilo tools."""
         console.print("[bold red] ⚠️  Please use the compiled_graph property to get tools.[/bold red]")
         return []
+    
+    def activate(self, server_id: str = None, dependencies: Any = None) -> None:
+        """Activate the langgraph agent.
+        
+        Args:
+            server_id: The thread_id for the langgraph agent.
+            dependencies: The dependencies for the langgraph agent. Not used.
+        """
+        super().activate(server_id, dependencies)
+        self._thread_id = server_id or "1"
 
     async def process_chat_message(self, message: str = None, websockets: List[WebSocket] = []) -> Dict[str, Any]:
         """Process a message using the langgraph agent's invoke method."""
@@ -67,7 +78,7 @@ class LanggraphMahiloAgent(BaseAgent):
         messages = [("user", message_full)]
         messages.append(("system", self.description))
 
-        config = {"configurable": {"thread_id": "1"}}
+        config = {"configurable": {"thread_id": self._thread_id}}
 
         response = self.compiled_graph.invoke({"messages": messages}, config, stream_mode="values")
 
@@ -107,7 +118,7 @@ class LanggraphMahiloAgent(BaseAgent):
         messages.append(("system", self.description))
         messages.append(("system", "You should only contact other agents if the need be. If you already have info from them, don't call any tools and just return your answer based on their response."))
 
-        config = {"configurable": {"thread_id": "1"}}
+        config = {"configurable": {"thread_id": self._thread_id}}
         
         # Invoke the langgraph agent
         response = self.compiled_graph.invoke({"messages": messages}, config, stream_mode="values")
