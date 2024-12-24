@@ -91,7 +91,7 @@ class LanggraphMahiloAgent(BaseAgent):
         ]
 
         print("Activated agents:", activated_agents)
-        print("In process_chat_message:", response_text)
+        print(f"In process_chat_message: Response for {self.name}: {response_text}")
 
         return {
             "response": response_text,
@@ -128,4 +128,4 @@ class LanggraphMahiloAgent(BaseAgent):
         for ws in websockets:
             await ws.send_text(response_text)
 
-        print("In queue fn:", response_text)
+        print(f"In process_queue_message: Response for {self.name}: {response_text}")

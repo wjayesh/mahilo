@@ -701,7 +701,7 @@ class BaseAgent:
         # if session is not None, then the agent is active
         return self._session is not None
     
-    def activate(self, server_id: str = None) -> None:
+    def activate(self, server_id: str = None, dependencies: Any = None) -> None:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
 
