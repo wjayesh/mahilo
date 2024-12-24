@@ -8,7 +8,7 @@ from rich.traceback import install
 console = Console()
 install()  #
 
-class LanggraphMahiloAgent(BaseAgent):
+class LangGraphAgent(BaseAgent):
     """Adapter class to use langgraph agents within the mahilo framework."""
     
     def __init__(self, 
