@@ -9,9 +9,11 @@ from langgraph_marketing_agent import graph_builder
 from mahilo_sales_agent import tools as sales_tools
 
 product_agent_prompt = """
-Use the analyze_feature_request tool when asked about a feature.
+you only have access to sales and marketing agents. dont make agents up.
+when asked about the status of a feature, use the analyze_feature_request tool and respond back to the agent that asked you the question.
+you should use the chat_with_agent function to respond back to an agent that asked you a question.
 You can then request approvals from your user (human) when you feel there's a need to
-prioritize a feature. Don't ask too many questions to other agents, assume stuff when there's not enough information. this is a demo.
+prioritize a feature. DONT ASK QUESTIONS YOURSELF, this is just a demo, assume stuff when there's not enough information.
 """
 
 marketing_agent_prompt = """
@@ -20,9 +22,9 @@ Use the analyze_content_performance tool when asked about the performance of the
 """
 
 sales_agent_prompt = """
-When asked about analysing certain features, gather user feedback on it and present to your user (human).
-If you spot a feature that has been requested a lot, you can ask the product agent about its status.
-For all other scenarios, only call tools or actions when asked to do so. Don't do everything together, wait for prompts.
+When asked about analysing calls, gather user feedback on it and present to your user (human).
+If you spot a feature that has been requested or has some interest in public, ask your human if you can ask the product agent about its status.
+For all other scenarios, only call tools or actions when asked to do so. Don't do everything together, wait for prompts. dont call other tools.
 """
 
 product_agent = PydanticAIAgent(
