@@ -416,6 +416,10 @@ class BaseAgent:
                 for resp in function_response:
                     func_resp += resp
 
+                # console log the function called and its response in suitable formatting
+                console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
+                console.print(f"[bold blue]Function response:[/bold blue] {func_resp}")
+
                 # append the response from the function to the messages
                 current_messages.append(
                     {
@@ -539,6 +543,10 @@ class BaseAgent:
                 # make one str from the function_response list of str
                 for resp in function_response:
                     func_resp += resp
+
+                # console log the function called and its response in suitable formatting
+                console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
+                console.print(f"[bold blue] Function response:[/bold blue] {func_resp}")
 
                 # append the response from the function to the messages
                 current_messages.append(
