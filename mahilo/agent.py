@@ -9,6 +9,8 @@ from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
 
+from mahilo.tools import get_chat_with_agent_tool
+
 console = Console()
 install()  #
 
@@ -126,12 +128,16 @@ class BaseAgent:
                             "type": "string",
                             "description": "The name of the agent to ask the question to.",
                         },
+                        "your_name": {
+                            "type": "string",
+                            "description": "The name of the agent asking the question, that is you.",
+                        },
                         "question": {
                             "type": "string",
                             "description": "The question to ask the agent.",
                         },
                     },
-                    "required": ["agent_name", "question"],
+                    "required": ["agent_name", "your_name", "question"],
                 }
             },
         ]
@@ -140,7 +146,11 @@ class BaseAgent:
     
     def _get_base_tools(self) -> List[Dict[str, Any]]:
         """Return the base tools that all agents must have."""
-        available_agents = self.get_contactable_agents_with_description()
+        try:
+            available_agents = self.get_contactable_agents_with_description()
+        except AttributeError as e:
+            console.print("[bold red] ⚠️  Agent not registered with AgentManager:[/bold red]")
+            available_agents = {}
         return [
             {
                 "type": "function",
@@ -159,6 +169,10 @@ class BaseAgent:
                             "agent_name": {
                                 "type": "string",
                                 "description": "The name of the agent to ask the question to.",
+                            },
+                            "your_name": {
+                                "type": "string",
+                                "description": "The name of the agent asking the question, that is you.",
                             },
                             "question": {
                                 "type": "string",
@@ -277,7 +291,7 @@ class BaseAgent:
             console.print(f"  [green]▪[/green] [cyan]{agent_type}:[/cyan] [dim]{desc}[/dim]")
 
         PROMPT = f"""
-        You are an AI agent of type {self.TYPE} in a multi-agent system. Your description is: {self.description}. Keep your responses concise.
+        You are an AI agent of type {self.TYPE} and name {self.name} in a multi-agent system. Your description is: {self.description}. Keep your responses concise.
 
         1. Direct User Messages:
         - When a user messages you directly, first try to respond using available context
@@ -341,7 +355,7 @@ class BaseAgent:
             session_messages.append({"content": message, "role": "user"})
 
         # get the last 7 messages from all other agents' sessions 
-        other_agent_messages = self._agent_manager.get_agent_messages(self.TYPE, num_messages=7)
+        other_agent_messages = self._agent_manager.get_agent_messages(self.name, num_messages=7)
         message_full = f"{other_agent_messages}"
         if message:
             message_full += f"\n User: {message}"
@@ -371,7 +385,7 @@ class BaseAgent:
         session_messages.append(response_message)
         while tool_calls:
             available_functions = {
-                "chat_with_agent": self.chat_with_agent,
+                "chat_with_agent": get_chat_with_agent_tool(),
                 "contact_human": self.contact_human, # just in case the model chooses this
                 **self._custom_functions  # Add custom functions to available functions
             }
@@ -495,7 +509,7 @@ class BaseAgent:
         session_messages.append(response_message)
         while tool_calls:
             available_functions = {
-                "chat_with_agent": self.chat_with_agent,
+                "chat_with_agent": get_chat_with_agent_tool(),
                 "contact_human": self.contact_human,
                 **self._custom_functions  # Add custom functions to available functions
             }
@@ -609,7 +623,7 @@ class BaseAgent:
     async def _send_to_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
         """Send a message to the client."""
         available_functions = {
-            "chat_with_agent": self.chat_with_agent,
+            "chat_with_agent": get_chat_with_agent_tool(),
         }
         try:
             async for openai_message in openai_ws:
@@ -687,7 +701,7 @@ class BaseAgent:
         # if session is not None, then the agent is active
         return self._session is not None
     
-    def activate(self, server_id: str = None) -> None:
+    def activate(self, server_id: str = None, dependencies: Any = None) -> None:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
 

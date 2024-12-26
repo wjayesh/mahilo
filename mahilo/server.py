@@ -130,7 +130,11 @@ class ServerManager:
             for agent in self.agent_manager.get_all_agents():
                 if agent.is_active() and agent._queue:
                     message = agent._queue.pop(0)
-                    websockets = self.websocket_connections[agent.name].values()
+                    websockets = []
+                    try:
+                        websockets = self.websocket_connections[agent.name].values()
+                    except KeyError:
+                        self.console.print(f"[bold yellow]⚠️  No WebSocket connections found for agent:[/bold yellow] [green]{agent.name}[/green]")
                     list_websockets = [ws for ws in websockets]
                     await agent.process_queue_message(message, websockets=list_websockets)
             await asyncio.sleep(1)

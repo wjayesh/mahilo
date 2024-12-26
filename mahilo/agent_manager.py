@@ -1,5 +1,6 @@
 from typing import Dict, List
 from .agent import BaseAgent
+from .registry import GlobalRegistry
 
 
 class AgentManager:
@@ -9,6 +10,8 @@ class AgentManager:
     """
     def __init__(self):
         self.agents: Dict[str, BaseAgent] = {}
+        # Register self with global registry
+        GlobalRegistry.set_agent_registry(self)
 
     def register_agent(self, agent: BaseAgent) -> None:
         """Register an agent with the AgentManager."""
