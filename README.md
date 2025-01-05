@@ -1,4 +1,8 @@
-# Mahilo: Multi-Agent with Human-in-the-Loop System Framework
+<div align="center">
+  <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0fcbab94-8fbe-4a38-93e8-c2348450a42e" />
+  <h1 align="center">Control Plane For Your AI Agents
+</h1>
+</div>
 
   [![PyPi][pypiversion-shield]][pypi-url]
   [![PyPi][downloads-shield]][downloads-url]
@@ -11,15 +15,9 @@
   [license-shield]: https://img.shields.io/github/license/wjayesh/mahilo?color=9565F6
   [license-url]: https://github.com/wjayesh/mahilo/blob/main/LICENSE
 
+mahilo is a multi-agent framework that allows you to create new agents or register agents from other frameworks in a team, where they can talk to each other and share information, all under human supervision.
 
-## 🎉 OpenAI Realtime API available with mahilo!
-
-You can now use voice to interact with your mahilo agents, powered by the OpenAI Realtime API!
-Here's a blog on how I built this feature, with technical details: [Building a voice-enabled Python FastAPI app using OpenAI's Realtime API](https://medium.com/thedeephub/building-a-voice-enabled-python-fastapi-app-using-openais-realtime-api-bfdf2947c3e4)
-
-Check out the video below to see the new Realtime API feature in action with mahilo!
-[![Mahilo Realtime API](https://github.com/wjayesh/mahilo/blob/main/assets/yt_thumbnail_realtime.png?raw=true)](https://youtu.be/SoWUZUjhhq8?si=Upwa-x44Ss4_u2sn "Mahilo with the OpenAI Realtime API")
-
+![mahilo](./assets/mahilo_integrations1.png)
 
 ## Install
 
@@ -31,58 +29,49 @@ Note that if you want to use the voice feature, you need to have `pyaudio` insta
 
 ## Usage
 
-```python
+```python 
 from mahilo.agent import BaseAgent
+from mahilo.integrations.langgraph.agent import LangGraphAgent
 from mahilo.agent_manager import AgentManager
 from mahilo.server import ServerManager
 
+# a mahilo agent
+sales_agent = BaseAgent(
+    type="sales_agent",
+    description=sales_agent_prompt,
+    tools=sales_tools,
+)
 
-# initialize the agent manager
+# a langgraph agent
+marketing_agent = LangGraphAgent(
+    langgraph_agent=graph_builder,
+    name="MarketingAgent",
+    description=marketing_agent_prompt,
+    can_contact=[],
+)
+
+# Create Agent Manager (think of it as a team)
 manager = AgentManager()
+manager.register_agent(sales_agent)
+manager.register_agent(marketing_agent)
 
-# create the agents
-emergency_dispatcher = Agent(
-    type='emergency_dispatcher',
-    description=EMERGENCY_DISPATCHER_PROMPT,
-    short_description=EMERGENCY_DISPATCHER_SHORT_DESCRIPTION,
-)
-police_proxy = Agent(
-    type='police_proxy',
-    description=POLICE_PROXY_PROMPT,
-    short_description=POLICE_PROXY_SHORT_DESCRIPTION,
-)
-medical_proxy = Agent(
-    type='medical_proxy',
-    description=MEDICAL_PROXY_PROMPT,
-    short_description=MEDICAL_PROXY_SHORT_DESCRIPTION,
-)
-
-# register the agents to the manager
-manager.register_agent(emergency_dispatcher)
-manager.register_agent(police_proxy)
-manager.register_agent(medical_proxy)
-
-# activate the emergency dispatcher as the starting point of the conversation
-emergency_dispatcher.activate()
+# activate any agents with runtime params (here server_id is the thread_id for the langgraph agent)
+marketing_agent.activate(server_id="1")
 
 # initialize the server manager
 server = ServerManager(manager)
-
-# run the server
-def main():
-    server.run()
-
-if __name__ == "__main__":
-    main()
+# Start WebSocket Server
+server.run()
 ```
+
 When the code above is run, it starts a websocket server on localhost (unless some other host is specified)that clients can connect to. In this case, clients can connect to three websocket endpoints corresponding to the three agents.
 For example, to do that for one agent, you can run the following command in a separate terminal (from the root of this repo):
 
 ```
-python mahilo/client.py --url http://localhost:8000 --agent-name emergency_dispatcher
+python mahilo/client.py --url http://localhost:8000 --agent-name marketing_agent
 ```
 
-This would then allow you to talk to the emergency dispatcher agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
+This would then allow you to talk to the marketing agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
 
 Ideally, you would spin up more terminals for the other agents and can then observe how the conversation would unfold across the agents. 
 
@@ -153,7 +142,7 @@ More information on the features can be found in the [Detailed Features](#detail
 
 3. Go to one of the example directories and run the server:
    ```
-   cd examples/your_example  # one of dispatcher or health_emergency
+   cd examples/your_example
    python run_server.py
    ```
    This starts the agent server locally at `http://localhost:8000`.
