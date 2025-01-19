@@ -14,7 +14,7 @@
   [license-shield]: https://img.shields.io/github/license/wjayesh/mahilo?color=9565F6
   [license-url]: https://github.com/wjayesh/mahilo/blob/main/LICENSE
 
-mahilo is a multi-agent framework that allows you to create new agents or register agents from other frameworks in a team, where they can talk to each other and share information, all under human supervision.
+**mahilo** is a multi-agent framework that allows you to create new agents or register agents from other frameworks in a team, where they can talk to each other and share information, all under human supervision.
 
 ![mahilo](./assets/mahilo_integrations1.png)
 
@@ -24,7 +24,10 @@ mahilo is a multi-agent framework that allows you to create new agents or regist
 pip install mahilo
 ```
 
-Note that if you want to use the voice feature, you need to have `pyaudio` installed. Learn how to do it for your OS, [here](https://pypi.org/project/PyAudio/).
+For voice features, install with the voice extras as below. You also need to install PyAudio for your system. Learn how to do it for your OS, [here](https://pypi.org/project/PyAudio/).
+```
+pip install mahilo[voice]
+```
 
 ## Usage
 

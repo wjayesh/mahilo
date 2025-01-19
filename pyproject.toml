@@ -10,8 +10,8 @@ authors = [{name = "Jayesh Sharma", email = "wjayesh@outlook.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "openai",
-    "fastapi",
+    "openai>=1.59.8",
+    "fastapi>=0.115.6",
     "uvicorn",
     "websockets",
     "python-dotenv",
@@ -20,6 +20,9 @@ dependencies = [
     "langgraph==0.2.60",
     "pydantic-ai==0.0.15",
 ]
+
+[project.optional-dependencies]
+voice = ["pyaudio"]
 
 [project.urls]
 Homepage = "https://github.com/wjayesh/mahilo"
