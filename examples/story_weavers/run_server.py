@@ -1,5 +1,4 @@
-from mahilo.agent_manager import AgentManager
-from mahilo.server import ServerManager
+from mahilo import AgentManager, ServerManager
 from mahilo.templates.story_weavers.story_weaver_agent import StoryWeaverAgent
 import argparse
 

@@ -13,18 +13,13 @@ An image showing how the agents that talk to the humans add to their productivit
 
 ### Installation and Running the Server
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/wjayesh/multi-agent.git
-   ```
-
-2. Install the required packages:
-   ```
-   pip install -r requirements.txt
+1. Install mahilo:
+   ```bash
+   pip install mahilo
    ```
 
-3. Run the server:
-   ```
+2. Run the server:
+   ```bash
    cd examples/health_emergency
    python run_server.py
    ```
@@ -33,24 +28,33 @@ An image showing how the agents that talk to the humans add to their productivit
 
 1. The code for the agents is defined in the `templates/peer2peer` directory.
 
-2. The `run_server.py` file is the entry point for the server. It initializes the agent manager, creates and registers the agents, and starts the WebSocket server.
+2. The `run_server.py` file is the entry point for the server. It initializes the agent manager, creates and registers the agents, and starts the WebSocket server:
+   ```python
+   from mahilo import AgentManager, ServerManager
+   from mahilo.templates.peer2peer.logistics_coordinator import LogisticsCoordinator
+   from mahilo.templates.peer2peer.medical_advisor import MedicalAdvisor
+   from mahilo.templates.peer2peer.public_communications_director import PublicCommunicationsDirector
 
-3. The `client.py` in the root repo directory is the entry point for the client. It connects to the server and sends messages to the server.
-
-4. When you run the server, it will start a WebSocket server on `ws://localhost:8000`. You can connect to this server using the CLI client.
-
-5. Connect to your server using the CLI client:
+   # initialize and setup agents
+   manager = AgentManager()
+   # ... rest of the setup
    ```
-   python client.py --url http://localhost:8000 --agent-name medical_advisor
-   ```
 
-   You can connect to the same server using multiple clients to interact with different agents in the system. For example:
-   ```
-   python client.py --url http://localhost:8000 --agent-name logistics_coordinator
-   python client.py --url http://localhost:8000 --agent-name public_communications_director
+3. When you run the server, it will start a WebSocket server on `localhost:8000`. You can connect to this server using the mahilo CLI.
+
+4. Connect to your server using the CLI:
+   ```bash
+   # Connect to the medical advisor
+   mahilo connect --agent-name medical_advisor
+
+   # In another terminal, connect to the logistics coordinator
+   mahilo connect --agent-name logistics_coordinator
+
+   # In another terminal, connect to the public communications director
+   mahilo connect --agent-name public_communications_director
    ```
 
 > [!TIP]
-> You dont have to specify the URL if you want to connect to the default server.
+> You don't have to specify the URL if you want to connect to the default server at localhost:8000.
 
 This setup allows you to simulate a real-world scenario where multiple agents need to coordinate their actions in response to a health emergency.

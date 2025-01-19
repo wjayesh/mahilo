@@ -1,5 +1,5 @@
 from typing import List
-from mahilo.agent import BaseAgent
+from mahilo import BaseAgent
 from tools import get_available_dates
 
 SELLER_AGENT_PROMPT = """

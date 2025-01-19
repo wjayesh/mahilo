@@ -1,8 +1,7 @@
-from mahilo.agent import BaseAgent
-from mahilo.agent_manager import AgentManager
+from mahilo import BaseAgent, AgentManager, ServerManager
 from mahilo.integrations.pydanticai.agent import PydanticAIAgent
 from mahilo.integrations.langgraph.agent import LangGraphAgent
-from mahilo.server import ServerManager
+import os
 
 from pydanticai_product_agent import DatabaseConn, ProductDependencies, product_agent
 from langgraph_marketing_agent import graph_builder
@@ -27,43 +26,48 @@ If you spot a feature that has been requested or has some interest in public, as
 For all other scenarios, only call tools or actions when asked to do so. Don't do everything together, wait for prompts. dont call other tools.
 """
 
-product_agent = PydanticAIAgent(
-    pydantic_agent=product_agent,
-    name="ProductAgent",
-    description=product_agent_prompt,
-    can_contact=[],
-    short_description="Product agent",
-)
+def main():
+    port = int(os.getenv("PORT", "8000"))
+    server_id = os.getenv("SERVER_ID")
 
-marketing_agent = LangGraphAgent(
-    langgraph_agent=graph_builder,
-    name="MarketingAgent",
-    description=marketing_agent_prompt,
-    can_contact=[],
-    short_description="Marketing agent",
-)
+    prod_agent = PydanticAIAgent(
+        pydantic_agent=product_agent,
+        name="ProductAgent",
+        description=product_agent_prompt,
+        can_contact=[],
+        short_description="Product agent",
+    )
 
-sales_agent = BaseAgent(
-    name="SalesAgent",
-    type="sales_agent",
-    description=sales_agent_prompt,
-    short_description="Sales agent",
-    tools=sales_tools,
-)
+    marketing_agent = LangGraphAgent(
+        langgraph_agent=graph_builder,
+        name="MarketingAgent",
+        description=marketing_agent_prompt,
+        can_contact=[],
+        short_description="Marketing agent",
+    )
 
-team = AgentManager()
-team.register_agent(product_agent)
-team.register_agent(marketing_agent)
-team.register_agent(sales_agent)
+    sales_agent = BaseAgent(
+        name="SalesAgent",
+        type="sales_agent",
+        description=sales_agent_prompt,
+        short_description="Sales agent",
+        tools=sales_tools,
+    )
 
-# activate the pydantic agent with the right dependencies
-product_agent.activate(dependencies=ProductDependencies(product_name="Mahilo", db=DatabaseConn()))
-# activate the langgraph agent with a thread id
-marketing_agent.activate(server_id="1")
-# activate the base agent with no dependencies
-sales_agent.activate()
+    team = AgentManager()
+    team.register_agent(prod_agent)
+    team.register_agent(marketing_agent)
+    team.register_agent(sales_agent)
 
-server = ServerManager(team)
+    # activate the pydantic agent with the right dependencies
+    prod_agent.activate(dependencies=ProductDependencies(product_name="Mahilo", db=DatabaseConn()))
+    # activate the langgraph agent with a thread id
+    marketing_agent.activate(server_id=server_id)
+    # activate the base agent with no dependencies
+    sales_agent.activate()
+
+    server = ServerManager(team)
+    server.run(port=port)
 
 if __name__ == "__main__":
-    server.run()
+    main()

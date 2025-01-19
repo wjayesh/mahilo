@@ -1,5 +1,4 @@
-from mahilo.agent_manager import AgentManager
-from mahilo.server import ServerManager
+from mahilo import AgentManager, ServerManager
 from mahilo.templates.scenario_911.dispatcher import EmergencyDispatcher
 from mahilo.templates.scenario_911.police import PoliceProxyAgent
 from mahilo.templates.scenario_911.medic import MedicalProxyAgent

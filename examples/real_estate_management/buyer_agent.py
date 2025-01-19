@@ -1,5 +1,5 @@
 from typing import List
-from mahilo.agent import BaseAgent
+from mahilo import BaseAgent
 from tools import search_properties, get_available_dates
 
 BUYER_AGENT_PROMPT = """
@@ -14,6 +14,7 @@ You are a professional real estate buyer's agent. Your role is to help buyers fi
 7. Using contact_human function to communicate with your buyer only when needed.
 
 Key points to remember:
+- Don't start scheduling a visit without the buyer's confirmation.
 - Be responsible, don't repeat sentences, don't ask the same question multiple times, and don't waste words. For example, don't ask for the dates again if you already have them.
 - If you have the needed information with you, don't ask the buyer about it and respond directly. For example, you already know the buyer's availability, just go ahead and coordinate the visit.
 - Don't send too many messages to the buyer human. Do as much as you can yourself. Just let the buyer know once you have done the task or if you need something from them.

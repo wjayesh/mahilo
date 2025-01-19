@@ -53,9 +53,15 @@ cd examples/team_of_agents
 python control_plane.py
 ```
 
-You can now connect to the agents using the `client.py` script.
+You can now connect to the agents using the mahilo CLI:
 ```bash
-python mahilo/client.py --agent-name ProductAgent
+mahilo connect --agent-name ProductAgent
+```
+
+In separate terminals, connect to other agents:
+```bash
+mahilo connect --agent-name MarketingAgent
+mahilo connect --agent-name SalesAgent
 ```
 
 ## Features
