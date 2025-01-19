@@ -7,6 +7,13 @@ import base64
 import json
 import threading
 
+# Optional import for voice features
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    PYAUDIO_AVAILABLE = False
+
 class Client:
     def __init__(self, url: str, agent_name: Optional[str] = None, voice: bool = False):
         self.base_url = url
@@ -19,11 +26,9 @@ class Client:
         self.stop_recording = threading.Event()
         
         if self.voice:
-            try:
-                import pyaudio
-                self.audio = pyaudio.PyAudio()
-            except ImportError:
+            if not PYAUDIO_AVAILABLE:
                 raise ImportError("PyAudio is required for voice features. Learn how to install it for your OS here: https://pypi.org/project/PyAudio/.")
+            self.audio = pyaudio.PyAudio()
 
     async def connect(self):
         if self.voice:
@@ -66,6 +71,9 @@ class Client:
             raise Exception("WebSocket connection not established")
 
     async def _record_and_send_audio(self):
+        if not self.voice:
+            raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
+            
         print("Recording... Press Enter to stop.")
         self.is_recording = True
         self.stop_recording.clear()
@@ -95,6 +103,9 @@ class Client:
             print("Recording stopped.")
 
     def _play_audio(self, audio_data):
+        if not self.voice:
+            raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
+            
         stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
         stream.write(audio_data)
         stream.stop_stream()
