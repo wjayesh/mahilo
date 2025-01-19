@@ -1,5 +1,4 @@
-from mahilo.agent_manager import AgentManager
-from mahilo.server import ServerManager
+from mahilo import AgentManager, ServerManager
 from buyer_agent import BuyerAgent
 from seller_agent import SellerAgent
 

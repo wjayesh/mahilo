@@ -50,6 +50,8 @@ pip install -r requirements.txt
 
 1. Inside, the run_server.py file, initialize a Buyer Agent:
 ```python
+from mahilo import BaseAgent
+
 buyer_preferences = """
 Looking for:
 - Location: Koramangala
@@ -61,6 +63,8 @@ buyer_agent = BuyerAgent(buyer_preferences=buyer_preferences)
 
 2. Inside, the run_server.py file, initialize a Seller Agent:
 ```python
+from mahilo import BaseAgent
+
 seller_preferences = """
 - Prefer to sell to a young family with children
 - Tenants should be inside the property by 9pm
@@ -70,10 +74,19 @@ seller_agent = SellerAgent(type="seller_agent_1", seller_preferences=seller_pref
 ```
 
 3. Run the server:
-   ```
-   cd examples/real_estate_management
-   python run_server.py
-   ```
+```bash
+cd examples/real_estate_management
+python run_server.py
+```
+
+4. Connect to the agents using the mahilo CLI:
+```bash
+# In one terminal
+mahilo connect --agent-name buyer_agent
+
+# In another terminal
+mahilo connect --agent-name seller_agent_1
+```
 
 ## Features
 

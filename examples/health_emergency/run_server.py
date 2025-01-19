@@ -1,5 +1,4 @@
-from mahilo.agent_manager import AgentManager
-from mahilo.server import ServerManager
+from mahilo import AgentManager, ServerManager
 from mahilo.templates.peer2peer.logistics_coordinator import LogisticsCoordinator
 from mahilo.templates.peer2peer.medical_advisor import MedicalAdvisor
 from mahilo.templates.peer2peer.public_communications_director import PublicCommunicationsDirector

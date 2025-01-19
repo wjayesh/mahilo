@@ -27,6 +27,9 @@ voice = ["pyaudio"]
 [project.urls]
 Homepage = "https://github.com/wjayesh/mahilo"
 
+[project.scripts]
+mahilo = "mahilo.cli:cli"
+
 [tool.setuptools]
 packages = [
     "mahilo",

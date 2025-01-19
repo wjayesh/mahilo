@@ -1,5 +1,4 @@
 import asyncio
-import click
 import rich
 import websockets
 from typing import Optional
@@ -116,38 +115,3 @@ class Client:
             await self.websocket.close()
         if self.audio:
             self.audio.terminate()
-
-async def run_client(client: Client):
-    await client.connect()
-    while True:
-        if client.voice:
-            print("Press Enter to start recording...")
-            await asyncio.get_event_loop().run_in_executor(None, input)
-            await client.send_message("")  # This will trigger audio recording
-        else:
-            message = await asyncio.get_event_loop().run_in_executor(
-                None, 
-                input,
-                f"Enter message for {client.agent_name or 'main agent'} (or 'quit' to exit): "
-            )
-            if message.lower() == 'quit':
-                break
-            await client.send_message(message)
-    await client.close()
-
-@click.command()
-@click.option('--url', default='http://localhost:8000', help='Server URL')
-@click.option('--agent-name', required=True, help='Name of the agent to connect to')
-@click.option('--voice', is_flag=True, help='Enable voice', default=False)
-def cli(url: str, agent_name: Optional[str], voice: bool):
-    """CLI for connecting to the multi-agent server."""
-    client = Client(url, agent_name, voice)
-    asyncio.run(run_client(client))
-
-if __name__ == "__main__":
-    cli()
-
-# Usage example:
-# asyncio.run(run_client(Client("http://localhost:8000")))
-# or
-# asyncio.run(run_client(Client("ws://localhost:8000", "AgentType1")))

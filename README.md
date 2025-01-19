@@ -32,10 +32,8 @@ pip install mahilo[voice]
 ## Usage
 
 ```python 
-from mahilo.agent import BaseAgent
+from mahilo import BaseAgent, AgentManager, ServerManager
 from mahilo.integrations.langgraph.agent import LangGraphAgent
-from mahilo.agent_manager import AgentManager
-from mahilo.server import ServerManager
 
 # a mahilo agent
 sales_agent = BaseAgent(
@@ -66,11 +64,11 @@ server = ServerManager(manager)
 server.run()
 ```
 
-When the code above is run, it starts a websocket server on localhost (unless some other host is specified)that clients can connect to. In this case, clients can connect to three websocket endpoints corresponding to the three agents.
-For example, to do that for one agent, you can run the following command in a separate terminal (from the root of this repo):
+When the code above is run, it starts a websocket server on localhost (unless some other host is specified) that clients can connect to. In this case, clients can connect to three websocket endpoints corresponding to the three agents.
+For example, to do that for one agent, you can run the following command:
 
-```
-python mahilo/client.py --url http://localhost:8000 --agent-name marketing_agent
+```bash
+mahilo connect --url http://localhost:8000 --agent-name marketing_agent
 ```
 
 This would then allow you to talk to the marketing agent. If you pass the `--voice` flag, you would be able to talk to the agent using voice.
@@ -136,6 +134,9 @@ More information on the features can be found in the [Detailed Features](#detail
    ```
 
    Note that if you want to use the voice feature, you need to have `pyaudio` installed. Learn how to do it for your OS, [here](https://pypi.org/project/PyAudio/).
+   ```
+   pip install mahilo[voice]
+   ```
 
 2. Export your OpenAI API key:
    ```
@@ -149,18 +150,16 @@ More information on the features can be found in the [Detailed Features](#detail
    ```
    This starts the agent server locally at `http://localhost:8000`.
 
-4. Connect to the server using the CLI client:
+4. Connect to the server using the CLI:
    For each of the agents in the system, you can spin up a client to connect to the server.
    ```
-   cd mahilo
-   python client.py --url http://localhost:8000 --agent-name your_agent_name
+   mahilo connect --agent-name your_agent_name
    ```
    Run this command in separate terminals for each of the agents and you can then start talking with them.
 
    If you want to use the voice feature, you can run the same command with the `--voice` flag:
    ```
-   cd mahilo
-   python client.py --url http://localhost:8000 --agent-name your_agent_name --voice
+   mahilo connect --agent-name your_agent_name --voice
    ```
 
 
@@ -178,16 +177,15 @@ More information on the features can be found in the [Detailed Features](#detail
    python examples/your_example/run_server.py
    ```
 
-4. Connect to your server using the CLI client:
+4. Connect to your server using the CLI:
    ```
-   python mahilo/client.py --url http://localhost:8000 --agent-name your_agent_name
+   mahilo connect --agent-name your_agent_name
    ```
    You can connect to the same server using multiple clients to test the system with multiple users. This is useful for testing the system in a real-world scenario where multiple agents need to coordinate their actions.
 
    If you want to use the voice feature, you can run the same command with the `--voice` flag:
    ```
-   cd mahilo
-   python client.py --url http://localhost:8000 --agent-name your_agent_name --voice
+   mahilo connect --agent-name your_agent_name --voice
    ```
 
 > [!TIP]
