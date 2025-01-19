@@ -3,7 +3,6 @@ import click
 import rich
 import websockets
 from typing import Optional
-import pyaudio
 import base64
 import json
 import threading
@@ -13,11 +12,18 @@ class Client:
         self.base_url = url
         self.agent_name = agent_name
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
-        self.audio = pyaudio.PyAudio()
+        self.voice = voice
+        self.audio = None
         self.stream = None
         self.is_recording = False
         self.stop_recording = threading.Event()
-        self.voice = voice
+        
+        if self.voice:
+            try:
+                import pyaudio
+                self.audio = pyaudio.PyAudio()
+            except ImportError:
+                raise ImportError("PyAudio is required for voice features. Learn how to install it for your OS here: https://pypi.org/project/PyAudio/.")
 
     async def connect(self):
         if self.voice:
@@ -97,7 +103,8 @@ class Client:
     async def close(self):
         if self.websocket:
             await self.websocket.close()
-        self.audio.terminate()
+        if self.audio:
+            self.audio.terminate()
 
 async def run_client(client: Client):
     await client.connect()

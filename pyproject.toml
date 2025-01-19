@@ -21,6 +21,9 @@ dependencies = [
     "pydantic-ai==0.0.15",
 ]
 
+[project.optional-dependencies]
+voice = ["pyaudio"]
+
 [project.urls]
 Homepage = "https://github.com/wjayesh/mahilo"
 
