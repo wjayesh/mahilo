@@ -10,8 +10,8 @@ authors = [{name = "Jayesh Sharma", email = "wjayesh@outlook.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "openai",
-    "fastapi",
+    "openai==0.26.5",
+    "fastapi==0.115.6",
     "uvicorn",
     "websockets",
     "python-dotenv",
