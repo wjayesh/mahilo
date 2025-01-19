@@ -1,5 +1,5 @@
-fastapi==0.115.6
-openai==0.26.5
+fastapi>=0.115.6
+openai>=1.59.8
 python-dotenv==1.0.1
 uvicorn==0.30.6
 websockets==13.0.1
