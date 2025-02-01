@@ -621,7 +621,7 @@ class BaseAgent:
                     "prefix_padding_ms": 300,
                     "silence_duration_ms": 200
                 },
-                "tools": [tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
+                "tools": [tool for tool in self.tools_for_realtime if tool["name"] != "contact_human"],
                 "tool_choice": "auto",
                 "temperature": 0.8,
             }
