@@ -60,9 +60,12 @@ class ServerManager:
                         "Authorization": f"Bearer {self.key}",
                         "OpenAI-Beta": "realtime=v1"
                     }
-                # add params to the url without using urllib
-                ws_url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
-                async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
+                # add headers to url
+                ws_url = "wss://api.openai.com/v1/realtime"
+                for key, value in headers.items():
+                    ws_url += f"&{key}={value}"
+                ws_url += "?model=gpt-4o-realtime-preview-2024-12-17"
+                async with websockets.connect(ws_url) as openai_ws:
                     await agent._send_session_update(openai_ws)
                     await asyncio.gather(
                         agent._receive_from_client(websocket, openai_ws),
