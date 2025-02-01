@@ -92,6 +92,7 @@ class Client:
 
         try:
             while not self.stop_recording.is_set():
+                print("Recording...")
                 data = self.stream.read(1024)
                 audio_payload = base64.b64encode(data).decode('utf-8')
                 await self.websocket.send(json.dumps({
@@ -111,7 +112,7 @@ class Client:
         if not self.voice:
             raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
             
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
+        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, output=True)
         stream.write(audio_data)
         stream.stop_stream()
         stream.close()
