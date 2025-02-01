@@ -69,7 +69,9 @@ class Client:
     async def send_message(self, message: str):
         if self.websocket:
             if self.voice:
-                await self._record_and_send_audio()
+                # Changed to allow continuous recording
+                if not self.is_recording:
+                    await self._record_and_send_audio()
             else:
                 await self.websocket.send(json.dumps(message))
         else:
@@ -82,7 +84,7 @@ class Client:
         print("Recording... Press Enter to stop.")
         self.is_recording = True
         self.stop_recording.clear()
-        self.stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=24000, input=True, frames_per_buffer=1024)
+        self.stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
         
         def input_thread():
             input()
@@ -92,7 +94,6 @@ class Client:
 
         try:
             while not self.stop_recording.is_set():
-                print("Recording...")
                 data = self.stream.read(1024)
                 audio_payload = base64.b64encode(data).decode('utf-8')
                 await self.websocket.send(json.dumps({

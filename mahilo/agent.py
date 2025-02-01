@@ -632,15 +632,12 @@ class BaseAgent:
     async def _receive_from_client(self, websocket: WebSocket, openai_ws: WebSocketClientProtocol) -> None:
         """Receive a message from the client."""
         try:
-            print("Receiving from client...")
             async for message in websocket.iter_json():
-                print("Received message:", message)
                 if message['event'] == 'media' and openai_ws.open:
                     audio_append = {
                         "type": "input_audio_buffer.append",
                         "audio": message['media']['payload']
                     }
-                    print("Sending audio append:", json.dumps(audio_append))
                     await openai_ws.send(json.dumps(audio_append))
                 # TODO: Handle other event types if needed
         except WebSocketDisconnect:
@@ -655,7 +652,6 @@ class BaseAgent:
         }
         try:
             async for openai_message in openai_ws:
-                print("Received message from openai:", openai_message)
                 response = json.loads(openai_message)
                 function_call_args = {}
                 if response['type'] == 'session.updated':
