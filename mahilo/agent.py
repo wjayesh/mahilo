@@ -714,6 +714,21 @@ class BaseAgent:
                             }
                         }
                         await openai_ws.send(json.dumps(response_create))
+
+                if response['type'] == 'conversation.item.input_audio_transcription.completed':
+                    # get the transcription from the response
+                    transcription = response['transcript']
+                    console.print(f"[bold blue] User input transcription:[/bold blue] {transcription}")
+                    # add the transcription to the session
+                    self._session.add_message(transcription, "user")
+
+                if response['type'] == 'response.audio_transcript.done':
+                    # get the transcript from the response
+                    transcript = response['transcript']
+                    console.print(f"[bold green] Assistant audio transcript:[/bold green] {transcript}")
+                    # add the transcript to the session
+                    self._session.add_message(transcript, "assistant")
+                    
         except Exception as e:
             print(f"Error in send_to_client: {e}")
 
