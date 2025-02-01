@@ -19,9 +19,7 @@ class ServerManager:
         self.app = FastAPI()
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", None)
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", None)
-        self.key = os.getenv("AZURE_OPENAI_KEY", None)
+        self.key = os.getenv("OPENAI_API_KEY", None)
         self.token_provider = None
 
         self.agent_manager.populate_can_contact_for_agents()
@@ -44,8 +42,8 @@ class ServerManager:
 
             self.console.print(f"[bold blue]🎙️ New voice stream connection[/bold blue] for agent: [green]{agent_name}[/green]")
 
-            if not all([self.endpoint, self.deployment, self.key]):
-                await websocket.send_text("Azure OpenAI credentials not configured. Voice streaming is unavailable.")
+            if not self.key:
+                await websocket.send_text("OpenAI credentials not configured. Voice streaming is unavailable.")
                 await websocket.close(1008)  # Using 1008 (Policy Violation) status code
                 return
             
