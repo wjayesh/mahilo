@@ -13,7 +13,7 @@ dependencies = [
     "openai>=1.55.0,<2.0.0",
     "fastapi>=0.109.2,<0.115.6",
     "uvicorn",
-    "websockets",
+    "websockets==13.0.1",
     "python-dotenv",
     "pydantic",
     "rich",
@@ -36,6 +36,7 @@ packages = [
     "mahilo.templates",
     "mahilo.templates.peer2peer",
     "mahilo.templates.centralized",
+    "mahilo.integrations",
     "mahilo.integrations.langgraph",
     "mahilo.integrations.pydanticai",
 ]
