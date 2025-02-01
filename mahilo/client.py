@@ -28,6 +28,12 @@ class Client:
             if not PYAUDIO_AVAILABLE:
                 raise ImportError("PyAudio is required for voice features. Learn how to install it for your OS here: https://pypi.org/project/PyAudio/.")
             self.audio = pyaudio.PyAudio()
+            
+            # Add device check
+            try:
+                default_input = self.audio.get_default_input_device_info()
+            except OSError:
+                raise RuntimeError("No audio input device found. Check your microphone configuration.")
 
     async def connect(self):
         if self.voice:
@@ -63,7 +69,9 @@ class Client:
     async def send_message(self, message: str):
         if self.websocket:
             if self.voice:
-                await self._record_and_send_audio()
+                # Changed to allow continuous recording
+                if not self.is_recording:
+                    await self._record_and_send_audio()
             else:
                 await self.websocket.send(json.dumps(message))
         else:
@@ -81,6 +89,7 @@ class Client:
         def input_thread():
             input()
             self.stop_recording.set()
+            print("Recording will stop shortly...")
 
         threading.Thread(target=input_thread, daemon=True).start()
 
