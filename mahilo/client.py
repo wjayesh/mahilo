@@ -69,9 +69,9 @@ class Client:
     async def send_message(self, message: str):
         if self.websocket:
             if self.voice:
-                # Changed to allow continuous recording
+                # Start recording task if not already recording
                 if not self.is_recording:
-                    await self._record_and_send_audio()
+                    asyncio.create_task(self._record_and_send_audio())
             else:
                 await self.websocket.send(json.dumps(message))
         else:
@@ -90,6 +90,7 @@ class Client:
             input()
             self.stop_recording.set()
 
+        # Start input thread to listen for the stop command
         threading.Thread(target=input_thread, daemon=True).start()
 
         try:
