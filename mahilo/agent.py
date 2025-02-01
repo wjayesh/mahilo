@@ -106,20 +106,21 @@ class BaseAgent:
     @property
     def tools_for_realtime(self) -> List[Dict[str, Any]]:
         """Return the tools that this agent has for realtime."""
+        try:
+            available_agents = self.get_contactable_agents_with_description()
+        except AttributeError as e:
+            console.print("[bold red] ⚠️  Agent not registered with AgentManager:[/bold red]")
+            available_agents = {}
         TOOLS = [
             {
                 "name": "chat_with_agent",
                 "type": "function",
                 "description": (
-                    "Chat with an agent of a given type. You are already given "
-                    "the list of agent types you can talk to. Determine what agent type "
+                    "Chat with an agent by their name. You are already given "
+                    "the list of agent names you can talk to. Determine what agent "
                     "would be best suited to answer a question and also what question should be asked. "
-                    "The question will be sent as is to the agent's user so frame it in a way that some human can read "
-                    "and answer directly. It won't be answered by the agent, it will be answered by the user."
-                    "You should also proactively share any information with the agent that might be relevant "
-                    "to the conversation you are having with them. This will help the other agent be in the loop. "
-                    f"The agent types available to you are police_proxy and medical_proxy. "
-                    "If you think you can answer the question yourself, DON'T ask another agent."
+                    f"The agent names available to you are {available_agents}. "
+                    "Don't use any other agent names. You also shouldn't send a chat message to yourself."
                 ),
                 "parameters": {
                     "type": "object",
@@ -139,6 +140,22 @@ class BaseAgent:
                     },
                     "required": ["agent_name", "your_name", "question"],
                 }
+            },
+            {
+                "name": "contact_human",
+                "type": "function",
+                "description": (
+                    "Contact your human. Use this function whenever you want to send some information to your human or get new information from your human."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "The message to send to the human.",
+                        },
+                    },
+                },
             },
         ]
         return TOOLS
