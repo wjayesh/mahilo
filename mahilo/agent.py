@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
+import asyncio
 
 from mahilo.tools import get_chat_with_agent_tool
 
@@ -639,7 +640,6 @@ class BaseAgent:
                         "audio": message['media']['payload']
                     }
                     await openai_ws.send(json.dumps(audio_append))
-                # TODO: Handle other event types if needed
         except WebSocketDisconnect:
             print("Client disconnected.")
             if openai_ws.open:
@@ -652,7 +652,10 @@ class BaseAgent:
         }
         try:
             async for openai_message in openai_ws:
+                # Add keepalive heartbeat
+                await asyncio.sleep(0.1)  # Prevent event loop starvation
                 response = json.loads(openai_message)
+                print("Received message from OpenAI:", response)
                 function_call_args = {}
                 if response['type'] == 'session.updated':
                     print("Session updated successfully:", response)
