@@ -613,7 +613,7 @@ class BaseAgent:
             "session": {
                 "modalities": ["text", "audio"],
                 "instructions": self.prompt_message(),
-                "voice": "alloy",
+                "voice": "ash",
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "turn_detection": {
@@ -709,7 +709,7 @@ class BaseAgent:
                             "response": {
                                 "modalities": ["text"],
                                 "instructions": func_resp,
-                                "voice": "alloy",
+                                "voice": "ash",
                                 "output_audio_format": "pcm16",
                                 "tools": self.tools_for_realtime,
                                 "tool_choice": "required",
