@@ -51,6 +51,7 @@ class BaseAgent:
     description: str = None
     short_description: str = None
     can_contact: List[str] = []
+    _voice_connections: List[WebSocketClientProtocol] = []
 
     def __init__(self, type: str, name: str = None, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
         """Initialize a BaseAgent.
@@ -765,11 +766,29 @@ class BaseAgent:
             "You will hear back soon."
         )
     
-    async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> None:
-        """Respond to the human."""
-        for ws in websockets:
-            await ws.send_text(message)
-        return f"I have sent your message to the human as I don't have the information in context."
+    async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> str:
+        # Prioritize voice connections if available
+        if self._voice_connections:
+            for openai_ws in self._voice_connections:
+                response_create = {
+                    "type": "response.create",
+                    "response": {
+                        "modalities": ["audio"],
+                        "instructions": "Please say the following message to the human: " + message,
+                        "voice": "ash",
+                        "output_audio_format": "pcm16",
+                        "tools": self.tools_for_realtime,
+                        "tool_choice": "required",
+                        "temperature": 0.7,
+                    }
+                }
+                await openai_ws.send(json.dumps(response_create))
+            return f"Sent voice message to human: {message}"
+        else:
+            # Fallback to text
+            for ws in websockets:
+                await ws.send_text(message)
+            return f"Sent text message to human: {message}"
 
     def _validate_tool_function(self, func: Callable, tool_name: str) -> None:
         """Validate that a tool function meets the required signature.

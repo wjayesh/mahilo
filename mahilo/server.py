@@ -65,12 +65,19 @@ class ServerManager:
                 
                 try:
                     async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
-                        await agent._send_session_update(openai_ws)
-                        while True:
-                            await asyncio.gather(
-                                agent._receive_from_client(websocket, openai_ws),
-                                agent._send_to_client(websocket, openai_ws)
-                            )
+                        # Add the OpenAI WS to agent's voice connections
+                        agent._voice_connections.append(openai_ws)
+                        try:
+                            await agent._send_session_update(openai_ws)
+                            while True:
+                                await asyncio.gather(
+                                    agent._receive_from_client(websocket, openai_ws),
+                                    agent._send_to_client(websocket, openai_ws)
+                                )
+                        finally:
+                            # Remove connection when done
+                            if openai_ws in agent._voice_connections:
+                                agent._voice_connections.remove(openai_ws)
                 except Exception as e:
                     self.console.print(f"[bold red]Error with OpenAI WS connection: {e}[/bold red]")
                     await asyncio.sleep(1)
