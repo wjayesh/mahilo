@@ -80,22 +80,31 @@ class Client:
     async def _record_and_send_audio(self):
         if not self.voice:
             raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
-            
-        print("Recording... Press Enter to stop.")
-        self.is_recording = True
-        self.stop_recording.clear()
-        self.stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
         
-        def input_thread():
-            input()
-            self.stop_recording.set()
-
-        # Start input thread to listen for the stop command
-        threading.Thread(target=input_thread, daemon=True).start()
-
+        print("Recording started... (press Ctrl+C to stop recording)")
+        self.is_recording = True
+        loop = asyncio.get_event_loop()
+        
+        # Open stream in a thread-safe way
+        self.stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=1024,
+            start=False
+        )
+        self.stream.start_stream()
+        
         try:
-            while not self.stop_recording.is_set():
-                data = self.stream.read(1024)
+            while True:
+                # Run blocking read in executor
+                data = await loop.run_in_executor(
+                    None, 
+                    self.stream.read, 
+                    1024,
+                    False  # Non-blocking read (though actual non-blocking needs special handling)
+                )
                 audio_payload = base64.b64encode(data).decode('utf-8')
                 await self.websocket.send(json.dumps({
                     "event": "media",
@@ -103,7 +112,10 @@ class Client:
                         "payload": audio_payload
                     }
                 }))
-                await asyncio.sleep(0.01)  # Small delay to prevent flooding
+        except asyncio.CancelledError:
+            print("Recording task cancelled")
+        except Exception as e:
+            print("Recording error:", e)
         finally:
             self.is_recording = False
             self.stream.stop_stream()
@@ -114,7 +126,7 @@ class Client:
         if not self.voice:
             raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
             
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, output=True)
+        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=8050, output=True)
         stream.write(audio_data)
         stream.stop_stream()
         stream.close()
