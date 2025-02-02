@@ -62,12 +62,18 @@ class ServerManager:
                     }
                 # add params to the url without using urllib
                 ws_url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
-                async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
-                    await agent._send_session_update(openai_ws)
-                    await asyncio.gather(
-                        agent._receive_from_client(websocket, openai_ws),
-                        agent._send_to_client(websocket, openai_ws)
-                    )
+                
+                try:
+                    async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
+                        await agent._send_session_update(openai_ws)
+                        while True:
+                            await asyncio.gather(
+                                agent._receive_from_client(websocket, openai_ws),
+                                agent._send_to_client(websocket, openai_ws)
+                            )
+                except Exception as e:
+                    self.console.print(f"[bold red]Error with OpenAI WS connection: {e}[/bold red]")
+                    await asyncio.sleep(1)
 
             except WebSocketDisconnect:
                 self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent: [green]{agent_name}[/green]")
