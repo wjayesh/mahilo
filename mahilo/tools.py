@@ -1,5 +1,6 @@
 from typing import Callable
 from .registry import GlobalRegistry
+from .message_protocol import MessageType
 
 def get_chat_with_agent_tool() -> Callable:
     """Get the chat_with_agent tool that can be bound to LLMs."""
@@ -18,11 +19,16 @@ def get_chat_with_agent_tool() -> Callable:
         if not agent.is_active():
             agent.activate()
             
-        # add the question to the agent's queue
-        agent.add_message_to_queue(question, your_name)
+        # Send message through broker instead of directly to queue
+        registry.send_message_to_agent(
+            sender=your_name,
+            recipient=agent_name,
+            message=question,
+            message_type=MessageType.DIRECT
+        )
         
         return (
-            f"I have put the question '{question}' in the queue for the agent named {agent_name}. "
+            f"I have sent the message '{question}' to the agent named {agent_name}. "
             "You will hear back soon."
         )
     
