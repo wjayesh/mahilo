@@ -47,7 +47,6 @@ class BaseAgent:
     TYPE: str = "Base"
     name: str = None
     _agent_manager: "AgentManager"
-    _queue: List[str]
     _session: Optional[Session] = None
     description: str = None
     short_description: str = None
@@ -72,7 +71,6 @@ class BaseAgent:
         """
         self.TYPE = type
         self.name = name or f"{type}_{id(self)}"  # Default to type_uniqueid if no name given
-        self._queue = []
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
