@@ -760,29 +760,6 @@ class BaseAgent:
     def activate(self, server_id: str = None, dependencies: Any = None) -> None:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
-
-    def chat_with_agent(self, agent_name: str, question: str) -> str:
-        """Chat with the agent of the given name."""
-        agent = self._agent_manager.get_agent(agent_name)
-        if not agent:
-            return f"Error: Agent with name '{agent_name}' not found"
-        
-        # if agent is not active, activate it
-        if not agent.is_active():
-            agent.activate()
-
-        # Send message through broker instead of directly to queue
-        self._agent_manager.send_message_to_agent(
-            sender=self.name,
-            recipient=agent_name,
-            message=question,
-            message_type=MessageType.DIRECT
-        )
-
-        return (
-            f"I have sent the message '{question}' to the agent named {agent_name}. "
-            "You will hear back soon."
-        )
     
     async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> str:
         # Prioritize voice connections if available
