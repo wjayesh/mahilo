@@ -3,7 +3,7 @@ from .agent import BaseAgent
 from .registry import GlobalRegistry, AgentRegistry
 from .message_protocol import MessageBroker, MessageEnvelope, MessageType
 from .message_store import SQLiteMessageStore
-from .monitoring import EventType, MessageMonitor
+from .monitoring import EventType, MahiloTelemetry
 
 
 class AgentManager(AgentRegistry):
@@ -13,14 +13,14 @@ class AgentManager(AgentRegistry):
     for managing agents and their communication.
     """
     def __init__(self, secret_key: str = None, db_path: str = "messages.db", 
-                 log_file: str = "mahilo_events.log"):
+                 service_name: str = "mahilo"):
         self.agents: Dict[str, BaseAgent] = {}
         self.store = SQLiteMessageStore(db_path)
-        self.monitor = MessageMonitor(log_file)
+        self.telemetry = MahiloTelemetry(service_name)
         self.message_broker = MessageBroker(
             secret_key=secret_key,
             store=self.store,
-            monitor=self.monitor
+            telemetry=self.telemetry
         )
         # Register self with global registry
         GlobalRegistry.set_agent_registry(self)
@@ -30,18 +30,17 @@ class AgentManager(AgentRegistry):
         if agent.name in self.agents:
             raise ValueError(f"Agent with name {agent.name} is already registered.")
         agent._agent_manager = self
-        agent._monitor = self.monitor
+        agent._telemetry = self.telemetry
         self.agents[agent.name] = agent
         
-        if self.monitor:
-            self.monitor.record_event(
-                event_type=EventType.AGENT_ACTIVATED,
-                agent_id=agent.name,
-                details={
-                    "type": agent.TYPE,
-                    "can_contact": agent.can_contact
-                }
-            )
+        self.telemetry.record_event(
+            event_type=EventType.AGENT_ACTIVATED,
+            agent_id=agent.name,
+            details={
+                "type": agent.TYPE,
+                "can_contact": agent.can_contact
+            }
+        )
 
     def get_agent(self, agent_name: str) -> Optional[BaseAgent]:
         """Return the agent of the given name. Implements AgentRegistry protocol."""
@@ -62,15 +61,20 @@ class AgentManager(AgentRegistry):
     def unregister_agent(self, agent_name: str) -> None:
         """Unregister the agent of the given name."""
         if agent_name in self.agents:
+            self.telemetry.record_event(
+                event_type=EventType.AGENT_DEACTIVATED,
+                agent_id=agent_name
+            )
             del self.agents[agent_name]
 
     def unregister_all_agents(self) -> None:
         """Unregister all agents."""
+        for agent_name in list(self.agents.keys()):
+            self.unregister_agent(agent_name)
         self.agents.clear()
 
     def get_agent_types_with_description(self) -> Dict[str, str]:
-        """Return a list of all registered agent types with their descriptions.
-        Implements AgentRegistry protocol."""
+        """Return a list of all registered agent types with their descriptions."""
         return {agent.name: agent.short_description for agent in self.agents.values()}
     
     def send_message_to_agent(self, sender: str, recipient: str, 
@@ -117,6 +121,6 @@ class AgentManager(AgentRegistry):
             
     def get_agent_metrics(self, agent_id: Optional[str] = None) -> Dict:
         """Get metrics for an agent or all agents."""
-        if self.monitor:
-            return self.monitor.get_metrics(agent_id)
+        if self.telemetry:
+            return self.telemetry.get_metrics(agent_id)
         return {}

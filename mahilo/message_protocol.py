@@ -75,10 +75,10 @@ class MessageEnvelope:
 
 class MessageBroker:
     """Message broker for handling inter-agent communication"""
-    def __init__(self, secret_key: Optional[str] = None, store = None, monitor = None):
+    def __init__(self, secret_key: Optional[str] = None, store = None, telemetry = None):
         self.secret_key = secret_key
         self.store = store
-        self.monitor = monitor
+        self.telemetry = telemetry
         self.MAX_RETRIES = 3
         
     def send_message(self, message: MessageEnvelope) -> None:
@@ -86,8 +86,8 @@ class MessageBroker:
         if self.store:
             self.store.save_message(message)
             
-        if self.monitor:
-            self.monitor.record_event(
+        if self.telemetry:
+            self.telemetry.record_event(
                 event_type=EventType.MESSAGE_SENT,
                 correlation_id=message.correlation_id,
                 agent_id=message.sender,
@@ -104,11 +104,14 @@ class MessageBroker:
         if self.store:
             messages = self.store.get_pending_messages(recipient)
             
-        if self.monitor and messages:
-            self.monitor.record_event(
+        if self.telemetry and messages:
+            self.telemetry.record_event(
                 event_type=EventType.QUEUE_LENGTH_CHANGED,
                 agent_id=recipient,
-                details={"queue_length": len(messages)}
+                details={
+                    "queue_length": len(messages),
+                    "previous_length": 0  # We don't track previous length currently
+                }
             )
             
         return messages
@@ -120,8 +123,8 @@ class MessageBroker:
             if message:
                 self.store.update_message_state(message_id, "processed")
                 
-                if self.monitor:
-                    self.monitor.record_event(
+                if self.telemetry:
+                    self.telemetry.record_event(
                         event_type=EventType.MESSAGE_PROCESSED,
                         correlation_id=message.correlation_id,
                         agent_id=recipient,
@@ -148,8 +151,8 @@ class MessageBroker:
         if retry_count <= self.MAX_RETRIES:
             self.store.update_message_state(message_id, "pending", retry_count)
             
-            if self.monitor:
-                self.monitor.record_event(
+            if self.telemetry:
+                self.telemetry.record_event(
                     event_type=EventType.RETRY,
                     correlation_id=message.correlation_id,
                     agent_id=recipient,
@@ -163,8 +166,8 @@ class MessageBroker:
             
         self.store.update_message_state(message_id, "failed", retry_count)
         
-        if self.monitor:
-            self.monitor.record_event(
+        if self.telemetry:
+            self.telemetry.record_event(
                 event_type=EventType.MESSAGE_FAILED,
                 correlation_id=message.correlation_id,
                 agent_id=recipient,
