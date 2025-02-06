@@ -2,6 +2,8 @@ from typing import Dict, List, Optional
 from .agent import BaseAgent
 from .registry import GlobalRegistry, AgentRegistry
 from .message_protocol import MessageBroker, MessageEnvelope, MessageType
+from .message_store import SQLiteMessageStore
+from .monitoring import EventType, MessageMonitor
 
 
 class AgentManager(AgentRegistry):
@@ -10,9 +12,16 @@ class AgentManager(AgentRegistry):
     This class implements the AgentRegistry protocol and provides additional functionality
     for managing agents and their communication.
     """
-    def __init__(self, secret_key: str = None):
+    def __init__(self, secret_key: str = None, db_path: str = "messages.db", 
+                 log_file: str = "mahilo_events.log"):
         self.agents: Dict[str, BaseAgent] = {}
-        self.message_broker = MessageBroker(secret_key=secret_key)
+        self.store = SQLiteMessageStore(db_path)
+        self.monitor = MessageMonitor(log_file)
+        self.message_broker = MessageBroker(
+            secret_key=secret_key,
+            store=self.store,
+            monitor=self.monitor
+        )
         # Register self with global registry
         GlobalRegistry.set_agent_registry(self)
 
@@ -21,7 +30,18 @@ class AgentManager(AgentRegistry):
         if agent.name in self.agents:
             raise ValueError(f"Agent with name {agent.name} is already registered.")
         agent._agent_manager = self
+        agent._monitor = self.monitor
         self.agents[agent.name] = agent
+        
+        if self.monitor:
+            self.monitor.record_event(
+                event_type=EventType.AGENT_ACTIVATED,
+                agent_id=agent.name,
+                details={
+                    "type": agent.TYPE,
+                    "can_contact": agent.can_contact
+                }
+            )
 
     def get_agent(self, agent_name: str) -> Optional[BaseAgent]:
         """Return the agent of the given name. Implements AgentRegistry protocol."""
@@ -53,20 +73,18 @@ class AgentManager(AgentRegistry):
         Implements AgentRegistry protocol."""
         return {agent.name: agent.short_description for agent in self.agents.values()}
     
-    def send_message_to_agent(self, sender: str, recipient: str, message: str,
-                            message_type: MessageType = MessageType.DIRECT) -> None:
-        """Send a message to an agent through the broker."""
-        if recipient not in self.agents:
-            raise ValueError(f"Agent {recipient} not found")
-            
+    def send_message_to_agent(self, sender: str, recipient: str, 
+                            message: str, message_type: MessageType = MessageType.DIRECT,
+                            correlation_id: Optional[str] = None) -> None:
+        """Send a message to an agent."""
         envelope = MessageEnvelope.create(
             sender=sender,
             recipient=recipient,
             payload=message,
             message_type=message_type,
+            correlation_id=correlation_id,
             secret_key=self.message_broker.secret_key
         )
-        
         self.message_broker.send_message(envelope)
     
     def get_agent_messages(self, agent_name: str, num_messages: int = 7) -> str:
@@ -91,3 +109,14 @@ class AgentManager(AgentRegistry):
         for agent in self.agents.values():
             if not agent.can_contact:
                 agent.can_contact = list(self.agents.keys())
+
+    def cleanup_old_messages(self, max_age_days: int = 30) -> None:
+        """Clean up old processed messages."""
+        if self.store:
+            self.store.cleanup_old_messages(max_age_days)
+            
+    def get_agent_metrics(self, agent_id: Optional[str] = None) -> Dict:
+        """Get metrics for an agent or all agents."""
+        if self.monitor:
+            return self.monitor.get_metrics(agent_id)
+        return {}

@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.traceback import install
 import asyncio
 
+from mahilo.monitoring import EventType
 from mahilo.tools import get_chat_with_agent_tool
 from .message_protocol import MessageType
 
@@ -52,8 +53,11 @@ class BaseAgent:
     short_description: str = None
     can_contact: List[str] = []
     _voice_connections: List[WebSocketClientProtocol] = []
+    _monitor = None
 
-    def __init__(self, type: str, name: str = None, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
+    def __init__(self, type: str, name: str = None, description: str = None, 
+                 can_contact: List[str] = [], short_description: str = None, 
+                 tools: List[Dict[str, Any]] = None, monitor = None):
         """Initialize a BaseAgent.
         
         Args:
@@ -65,17 +69,16 @@ class BaseAgent:
             tools (List[Dict], optional): List of tool configurations. Each tool must contain:
                 - "tool": The OpenAI tool configuration
                 - "function": A callable that returns str or List[str]
-                
-        Raises:
-            ToolFunctionError: If any tool configuration or function is invalid
+            monitor: Optional monitoring system for tracking agent events
         """
         self.TYPE = type
-        self.name = name or f"{type}_{id(self)}"  # Default to type_uniqueid if no name given
+        self.name = name or f"{type}_{id(self)}"
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
         self._custom_tools = []
         self._custom_functions = {}
+        self._monitor = monitor
 
         if tools:
             for tool_config in tools:
@@ -484,141 +487,165 @@ class BaseAgent:
 
     async def process_queue_message(self, websockets: List[WebSocket] = []) -> None:
         """Process messages from the broker queue."""
-        # Get pending messages from broker
-        pending_messages = self._agent_manager.message_broker.get_pending_messages(self.name)
+        if self._monitor:
+            self._monitor.record_event(
+                event_type=EventType.PROCESSING_STARTED,
+                agent_id=self.name,
+                message_id=str(id(websockets))  # Using a unique ID for the message
+            )
         
-        for envelope in pending_messages:
-            try:
-                # Verify message if signed
-                if self._agent_manager.message_broker.secret_key:
-                    if not envelope.verify(self._agent_manager.message_broker.secret_key):
-                        print(f"Warning: Message {envelope.message_id} failed signature verification")
-                        continue
-
-                # Format message for processing
-                formatted_message = f"{envelope.sender}: {envelope.payload}"
-                
-                session_messages = self._session.messages
-                current_messages = session_messages.copy()
-
-                queue_message = f"Pending messages: {formatted_message}"
-                print(f"Queue message for {self.TYPE}: {queue_message}")
-
-                session_messages.append({"content": queue_message, "role": "user"})
-                current_messages.append({"content": self.prompt_message(), "role": "system"})
-                current_messages.append({"content": queue_message, "role": "user"})
-
-                # Make the API call
-                response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=current_messages,
-                    tools=self.tools,
-                    tool_choice="auto",
-                )
-
-                print("In queue fn:", response.choices[0].message)
-                
-                # Process response and tool calls as before...
-                response_message = response.choices[0].message
-                tool_calls = response_message.tool_calls
-
-                # convert response_message ChatCompletionMessage to dict
-                response_message = response_message.model_dump()
-                current_messages.append(response_message)
-                session_messages.append(response_message)
-
-                while tool_calls:
-                    available_functions = {
-                        "chat_with_agent": get_chat_with_agent_tool(),
-                        "contact_human": self.contact_human,
-                        **self._custom_functions  # Add custom functions to available functions
-                    }
-                    
-                    for tool_call in tool_calls:
-                        function_name = tool_call.function.name
-                        function_to_call = available_functions[function_name]
-                        function_args = json.loads(tool_call.function.arguments)
-                        try:
-                            if function_name == "contact_human":
-                                function_response = await function_to_call(**function_args, websockets=websockets)
-                            else:
-                                function_response = function_to_call(**function_args)
-                                # Convert responses to appropriate string format
-                                if isinstance(function_response, dict):
-                                    function_response = json.dumps(function_response)
-                                elif isinstance(function_response, list):
-                                    function_response = [
-                                        json.dumps(item) if isinstance(item, dict) else str(item)
-                                        for item in function_response
-                                    ]
-                        except Exception as e:
-                            print(f"Error calling function {function_name}: {e}")
+        try:
+            # Get pending messages from broker
+            pending_messages = self._agent_manager.message_broker.get_pending_messages(self.name)
+            
+            for envelope in pending_messages:
+                try:
+                    # Verify message if signed
+                    if self._agent_manager.message_broker.secret_key:
+                        if not envelope.verify(self._agent_manager.message_broker.secret_key):
+                            print(f"Warning: Message {envelope.message_id} failed signature verification")
                             continue
 
-                        func_resp = ""
-                        # make one str from the function_response list of str
-                        for resp in function_response:
-                            func_resp += resp
+                    # Format message for processing
+                    formatted_message = f"{envelope.sender}: {envelope.payload}"
+                    
+                    session_messages = self._session.messages
+                    current_messages = session_messages.copy()
 
-                        # console log the function called and its response in suitable formatting
-                        console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
-                        console.print(f"[bold blue] Function response:[/bold blue] {func_resp}")
+                    queue_message = f"Pending messages: {formatted_message}"
+                    print(f"Queue message for {self.TYPE}: {queue_message}")
 
-                        # append the response from the function to the messages
-                        current_messages.append(
-                            {
-                                "tool_call_id": tool_call.id,
-                                "role": "tool",
-                                "name": function_name,
-                                "content": func_resp,
-                            }
-                        )
-                        session_messages.append(
-                            {
-                                "tool_call_id": tool_call.id,
-                                "role": "tool",
-                                "name": function_name,
-                                "content": func_resp,
-                            }
-                        )
+                    session_messages.append({"content": queue_message, "role": "user"})
+                    current_messages.append({"content": self.prompt_message(), "role": "system"})
+                    current_messages.append({"content": queue_message, "role": "user"})
 
+                    # Make the API call
                     response = await client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=current_messages,
                         tools=self.tools,
                         tool_choice="auto",
                     )
+
                     print("In queue fn:", response.choices[0].message)
-                    tool_calls = response.choices[0].message.tool_calls
+                    
+                    # Process response and tool calls as before...
+                    response_message = response.choices[0].message
+                    tool_calls = response_message.tool_calls
 
                     # convert response_message ChatCompletionMessage to dict
-                    response_message = response.choices[0].message.model_dump()
+                    response_message = response_message.model_dump()
+                    current_messages.append(response_message)
                     session_messages.append(response_message)
-                    current_messages.append(response_message)         
 
-                # add the response to the session
-                self._session.update_and_replace_messages(session_messages)
+                    while tool_calls:
+                        available_functions = {
+                            "chat_with_agent": get_chat_with_agent_tool(),
+                            "contact_human": self.contact_human,
+                            **self._custom_functions  # Add custom functions to available functions
+                        }
+                        
+                        for tool_call in tool_calls:
+                            function_name = tool_call.function.name
+                            function_to_call = available_functions[function_name]
+                            function_args = json.loads(tool_call.function.arguments)
+                            try:
+                                if function_name == "contact_human":
+                                    function_response = await function_to_call(**function_args, websockets=websockets)
+                                else:
+                                    function_response = function_to_call(**function_args)
+                                    # Convert responses to appropriate string format
+                                    if isinstance(function_response, dict):
+                                        function_response = json.dumps(function_response)
+                                    elif isinstance(function_response, list):
+                                        function_response = [
+                                            json.dumps(item) if isinstance(item, dict) else str(item)
+                                            for item in function_response
+                                        ]
+                            except Exception as e:
+                                print(f"Error calling function {function_name}: {e}")
+                                continue
 
-                # Acknowledge successful processing
-                self._agent_manager.message_broker.acknowledge_message(
-                    envelope.message_id, self.name
-                )
+                            func_resp = ""
+                            # make one str from the function_response list of str
+                            for resp in function_response:
+                                func_resp += resp
 
-            except Exception as e:
-                print(f"Error processing message {envelope.message_id}: {e}")
-                # Handle failure and retry if needed
-                should_retry = self._agent_manager.message_broker.handle_failure(
-                    envelope.message_id, self.name
-                )
-                if not should_retry:
-                    print(f"Max retries exceeded for message {envelope.message_id}")
-                    # Could send error message back to sender here
-                    self._agent_manager.send_message_to_agent(
-                        sender=self.name,
-                        recipient=envelope.sender,
-                        message=f"Failed to process message after max retries: {e}",
-                        message_type=MessageType.ERROR
+                            # console log the function called and its response in suitable formatting
+                            console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
+                            console.print(f"[bold blue] Function response:[/bold blue] {func_resp}")
+
+                            # append the response from the function to the messages
+                            current_messages.append(
+                                {
+                                    "tool_call_id": tool_call.id,
+                                    "role": "tool",
+                                    "name": function_name,
+                                    "content": func_resp,
+                                }
+                            )
+                            session_messages.append(
+                                {
+                                    "tool_call_id": tool_call.id,
+                                    "role": "tool",
+                                    "name": function_name,
+                                    "content": func_resp,
+                                }
+                            )
+
+                        response = await client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=current_messages,
+                            tools=self.tools,
+                            tool_choice="auto",
+                        )
+                        print("In queue fn:", response.choices[0].message)
+                        tool_calls = response.choices[0].message.tool_calls
+
+                        # convert response_message ChatCompletionMessage to dict
+                        response_message = response.choices[0].message.model_dump()
+                        session_messages.append(response_message)
+                        current_messages.append(response_message)         
+
+                    # add the response to the session
+                    self._session.update_and_replace_messages(session_messages)
+
+                    # Acknowledge successful processing
+                    self._agent_manager.message_broker.acknowledge_message(
+                        envelope.message_id, self.name
                     )
+
+                except Exception as e:
+                    print(f"Error processing message {envelope.message_id}: {e}")
+                    # Handle failure and retry if needed
+                    should_retry = self._agent_manager.message_broker.handle_failure(
+                        envelope.message_id, self.name
+                    )
+                    if not should_retry:
+                        print(f"Max retries exceeded for message {envelope.message_id}")
+                        # Could send error message back to sender here
+                        self._agent_manager.send_message_to_agent(
+                            sender=self.name,
+                            recipient=envelope.sender,
+                            message=f"Failed to process message after max retries: {e}",
+                            message_type=MessageType.ERROR
+                        )
+
+            if self._monitor:
+                self._monitor.record_event(
+                    event_type=EventType.PROCESSING_COMPLETED,
+                    agent_id=self.name,
+                    message_id=str(id(websockets))
+                )
+        except Exception as e:
+            if self._monitor:
+                self._monitor.record_event(
+                    event_type=EventType.ERROR,
+                    agent_id=self.name,
+                    message_id=str(id(websockets)),
+                    details={"error": str(e)}
+                )
+            raise e
 
     async def _send_session_update(self, openai_ws: WebSocketClientProtocol) -> None:
         """Send the session update to the OpenAI WebSocket."""
@@ -758,8 +785,30 @@ class BaseAgent:
     def activate(self, server_id: str = None, dependencies: Any = None) -> None:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
+        if self._monitor:
+            self._monitor.record_event(
+                event_type=EventType.AGENT_ACTIVATED,
+                agent_id=self.name,
+                details={"server_id": server_id}
+            )
+    
+    def deactivate(self) -> None:
+        """Deactivate the agent."""
+        self._session = None
+        if self._monitor:
+            self._monitor.record_event(
+                event_type=EventType.AGENT_DEACTIVATED,
+                agent_id=self.name
+            )
     
     async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> str:
+        if self._monitor:
+            self._monitor.record_event(
+                event_type=EventType.MESSAGE_SENT,
+                agent_id=self.name,
+                details={"recipient": "human", "message": message}
+            )
+            
         # Prioritize voice connections if available
         if self._voice_connections:
             for openai_ws in self._voice_connections:
