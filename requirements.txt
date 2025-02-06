@@ -8,3 +8,14 @@ rich==13.9.3
 langgraph==0.2.60
 pydantic-ai==0.0.15
 PyJWT==2.8.0
+
+# OpenTelemetry
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation>=0.42b0
+opentelemetry-semantic-conventions>=0.42b0
+
+# Optional exporters (uncomment the ones you want to use)
+# opentelemetry-exporter-otlp>=1.21.0  # OTLP exporter
+# opentelemetry-exporter-prometheus>=1.21.0  # Prometheus exporter
+# opentelemetry-exporter-jaeger>=1.21.0  # Jaeger exporter
