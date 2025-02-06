@@ -7,6 +7,7 @@ from enum import Enum
 import time
 import threading
 from collections import defaultdict
+import sqlite3
 
 class EventType(Enum):
     # Message events
@@ -39,56 +40,168 @@ class MonitoringEvent:
     details: Dict
     duration_ms: Optional[float] = None
 
+class MetricsStore:
+    """Persistent storage for monitoring metrics"""
+    
+    def __init__(self, db_path: str = "metrics.db"):
+        self.db_path = db_path
+        self._init_db()
+        
+    def _init_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            # Events table for raw event data
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    correlation_id TEXT,
+                    agent_id TEXT,
+                    message_id TEXT,
+                    details TEXT,
+                    duration_ms REAL
+                )
+            """)
+            
+            # Aggregated metrics table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agent_metrics (
+                    agent_id TEXT NOT NULL,
+                    metric_name TEXT NOT NULL,
+                    metric_value REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (agent_id, metric_name)
+                )
+            """)
+            
+            # Create indexes
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_event_type ON events(event_type)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_id ON events(agent_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON events(timestamp)")
+    
+    def record_event(self, event: MonitoringEvent):
+        """Record a monitoring event"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO events (
+                    event_type, timestamp, correlation_id, agent_id,
+                    message_id, details, duration_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                event.event_type.value,
+                event.timestamp,
+                event.correlation_id,
+                event.agent_id,
+                event.message_id,
+                json.dumps(event.details),
+                event.duration_ms
+            ))
+            
+            # Update aggregated metrics
+            if event.agent_id:
+                self._update_agent_metrics(conn, event)
+    
+    def _update_agent_metrics(self, conn: sqlite3.Connection, event: MonitoringEvent):
+        """Update aggregated metrics for an agent"""
+        timestamp = time.time()
+        
+        if event.event_type == EventType.MESSAGE_PROCESSED:
+            self._increment_metric(conn, event.agent_id, "messages_processed", 1, timestamp)
+            if event.duration_ms:
+                # Update average processing time
+                current_avg = self._get_metric(conn, event.agent_id, "avg_processing_time_ms")
+                current_count = self._get_metric(conn, event.agent_id, "messages_processed")
+                if current_count > 0:
+                    new_avg = ((current_avg * (current_count - 1)) + event.duration_ms) / current_count
+                    self._set_metric(conn, event.agent_id, "avg_processing_time_ms", new_avg, timestamp)
+        
+        elif event.event_type == EventType.MESSAGE_FAILED:
+            self._increment_metric(conn, event.agent_id, "messages_failed", 1, timestamp)
+        
+        elif event.event_type == EventType.RETRY:
+            self._increment_metric(conn, event.agent_id, "retries", 1, timestamp)
+    
+    def _increment_metric(self, conn: sqlite3.Connection, agent_id: str, 
+                         metric_name: str, increment: float, timestamp: float):
+        """Increment a metric value"""
+        conn.execute("""
+            INSERT INTO agent_metrics (agent_id, metric_name, metric_value, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(agent_id, metric_name) DO UPDATE SET
+                metric_value = metric_value + ?,
+                updated_at = ?
+        """, (agent_id, metric_name, increment, timestamp, increment, timestamp))
+    
+    def _set_metric(self, conn: sqlite3.Connection, agent_id: str, 
+                    metric_name: str, value: float, timestamp: float):
+        """Set a metric value"""
+        conn.execute("""
+            INSERT INTO agent_metrics (agent_id, metric_name, metric_value, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(agent_id, metric_name) DO UPDATE SET
+                metric_value = ?,
+                updated_at = ?
+        """, (agent_id, metric_name, value, timestamp, value, timestamp))
+    
+    def _get_metric(self, conn: sqlite3.Connection, agent_id: str, metric_name: str) -> float:
+        """Get current value of a metric"""
+        row = conn.execute("""
+            SELECT metric_value FROM agent_metrics
+            WHERE agent_id = ? AND metric_name = ?
+        """, (agent_id, metric_name)).fetchone()
+        return row[0] if row else 0
+    
+    def get_agent_metrics(self, agent_id: Optional[str] = None) -> Dict:
+        """Get metrics for an agent or all agents"""
+        with sqlite3.connect(self.db_path) as conn:
+            if agent_id:
+                rows = conn.execute("""
+                    SELECT metric_name, metric_value
+                    FROM agent_metrics
+                    WHERE agent_id = ?
+                """, (agent_id,)).fetchall()
+                return {row[0]: row[1] for row in rows}
+            
+            # Get all agent metrics
+            rows = conn.execute("""
+                SELECT agent_id, metric_name, metric_value
+                FROM agent_metrics
+            """).fetchall()
+            
+            metrics = defaultdict(dict)
+            for row in rows:
+                metrics[row[0]][row[1]] = row[2]
+            return dict(metrics)
+    
+    def cleanup_old_events(self, max_age_days: int = 30):
+        """Clean up old events while preserving aggregated metrics"""
+        cutoff = time.time() - (max_age_days * 24 * 60 * 60)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM events WHERE timestamp < ?", (cutoff,))
+
 class MetricsCollector:
     """Collects and aggregates monitoring metrics"""
     
-    def __init__(self):
-        self.metrics = defaultdict(lambda: defaultdict(float))
-        self.event_counts = defaultdict(int)
+    def __init__(self, store: Optional[MetricsStore] = None):
+        self.store = store
         self._lock = threading.Lock()
         
     def record_event(self, event: MonitoringEvent):
         with self._lock:
-            # Update event counts
-            self.event_counts[event.event_type] += 1
-            
-            # Record agent-specific metrics
-            if event.agent_id:
-                agent_metrics = self.metrics[event.agent_id]
-                
-                if event.event_type == EventType.MESSAGE_PROCESSED:
-                    agent_metrics["messages_processed"] += 1
-                    if event.duration_ms:
-                        agent_metrics["total_processing_time_ms"] += event.duration_ms
-                        agent_metrics["avg_processing_time_ms"] = (
-                            agent_metrics["total_processing_time_ms"] / 
-                            agent_metrics["messages_processed"]
-                        )
-                
-                elif event.event_type == EventType.MESSAGE_FAILED:
-                    agent_metrics["messages_failed"] += 1
-                
-                elif event.event_type == EventType.RETRY:
-                    agent_metrics["retries"] += 1
+            if self.store:
+                self.store.record_event(event)
     
     def get_metrics(self, agent_id: Optional[str] = None) -> Dict:
         """Get current metrics, optionally filtered by agent"""
-        with self._lock:
-            if agent_id:
-                return dict(self.metrics[agent_id])
-            return {
-                "event_counts": dict(self.event_counts),
-                "agent_metrics": {
-                    agent: dict(metrics)
-                    for agent, metrics in self.metrics.items()
-                }
-            }
+        if self.store:
+            return self.store.get_agent_metrics(agent_id)
+        return {}
 
 class MessageMonitor:
     """Central monitoring system for message and agent events"""
     
-    def __init__(self, log_file: str = "mahilo_events.log"):
-        self.metrics = MetricsCollector()
+    def __init__(self, metrics_db: str = "metrics.db", log_file: str = "mahilo_events.log"):
+        self.metrics = MetricsCollector(MetricsStore(metrics_db))
         
         # Configure logging
         self.logger = logging.getLogger("mahilo.monitoring")
