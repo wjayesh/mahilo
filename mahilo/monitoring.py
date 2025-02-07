@@ -112,17 +112,16 @@ class MahiloTelemetry:
     
     def record_event(self, 
                     event_type: EventType,
-                    correlation_id: Optional[str] = None,
-                    agent_id: Optional[str] = None,
-                    message_id: Optional[str] = None,
-                    details: Dict = None):
+                    correlation_id: Optional[str] = "",
+                    agent_id: Optional[str] = "",
+                    message_id: Optional[str] = "",
+                    details: Dict = {}):
         """Record a monitoring event using OpenTelemetry"""
-        details = details or {}
         attributes = {
             "event_type": event_type.value,
-            "agent_id": agent_id,
-            "message_id": message_id,
-            "correlation_id": correlation_id
+            "agent_id": agent_id or "",
+            "message_id": message_id or "",
+            "correlation_id": correlation_id or ""
         }
         
         # Start a span for the event
