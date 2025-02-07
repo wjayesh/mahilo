@@ -220,10 +220,50 @@ class MahiloTelemetry:
                 "timestamp": datetime.fromtimestamp(time.time()).isoformat(),
                 "correlation_id": correlation_id,
                 "agent_id": agent_id,
-                "message_id": message_id,
-                **details
+                "message_id": message_id
             }))
-    
+
+    def get_metrics(self, agent_id: Optional[str] = None) -> Dict:
+        """Get current metrics"""
+        metrics = {
+            "messages_processed": self.metrics_data["messages"],
+            "message_failures": self.metrics_data["message_failures"],
+            "message_retries": self.metrics_data["message_retries"],
+            "active_agents": self.metrics_data["active_agents"],
+            "queue_size": self.metrics_data["queue_size"],
+        }
+        
+        # Calculate processing time statistics if we have data
+        if self.metrics_data["processing_times"]:
+            times = self.metrics_data["processing_times"]
+            metrics["processing_time"] = {
+                "avg": sum(times) / len(times),
+                "min": min(times),
+                "max": max(times),
+                "count": len(times)
+            }
+        
+        # Filter by agent if specified
+        if agent_id:
+            # Filter traces to get agent-specific metrics
+            agent_traces = [t for t in self.traces if t["attributes"].get("agent_id") == agent_id]
+            metrics["agent_specific"] = {
+                "total_events": len(agent_traces),
+                "errors": len([t for t in agent_traces if t["status"] == "ERROR"])
+            }
+        
+        return metrics
+
+    def get_traces(self, limit: int = 100, agent_id: Optional[str] = None) -> List[Dict]:
+        """Get recent traces, optionally filtered by agent"""
+        if agent_id:
+            filtered_traces = [t for t in self.traces if t["attributes"].get("agent_id") == agent_id]
+        else:
+            filtered_traces = self.traces
+            
+        # Return most recent traces first
+        return sorted(filtered_traces, key=lambda x: x["start_time"], reverse=True)[:limit]
+
     def start_processing_span(self, message_id: str, agent_id: str) -> trace.Span:
         """Start a processing span for message handling"""
         return self.tracer.start_span(
