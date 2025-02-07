@@ -150,7 +150,10 @@ class ServerManager:
                         try:
                             websockets = self.websocket_connections[agent.name].values()
                         except KeyError:
-                            self.console.print(f"[bold yellow]⚠️  No WebSocket connections found for agent:[/bold yellow] [green]{agent.name}[/green]")
+                            # no websockets means no one is listening to this agent. this is fine
+                            # but the contact human function will not work.
+                            # don't wanna log this because it's inside a continuous loop
+                            pass
                         list_websockets = [ws for ws in websockets]
                         await agent.process_queue_message(websockets=list_websockets)
             await asyncio.sleep(1)
