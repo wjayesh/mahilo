@@ -12,6 +12,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.semconv.resource import ResourceAttributes
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
 
 class EventType(Enum):
     # Message events
@@ -55,12 +57,21 @@ class MahiloTelemetry:
             ResourceAttributes.SERVICE_NAME: service_name
         })
         
-        # Set up tracing
-        trace.set_tracer_provider(TracerProvider(resource=resource))
+        # Set up tracing with console exporter
+        trace_provider = TracerProvider(resource=resource)
+        console_span_exporter = ConsoleSpanExporter()
+        trace_provider.add_span_processor(SimpleSpanProcessor(console_span_exporter))
+        trace.set_tracer_provider(trace_provider)
         self.tracer = trace.get_tracer(__name__)
         
-        # Set up metrics
-        metrics.set_meter_provider(MeterProvider(resource=resource))
+        # Set up metrics with console exporter
+        console_metric_exporter = ConsoleMetricExporter()
+        reader = PeriodicExportingMetricReader(
+            console_metric_exporter,
+            export_interval_millis=20000  # Export metrics every 20 seconds
+        )
+        meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+        metrics.set_meter_provider(meter_provider)
         self.meter = metrics.get_meter(__name__)
         
         # Create metrics
@@ -68,6 +79,9 @@ class MahiloTelemetry:
         
         # Configure logging
         self.logger = logging.getLogger("mahilo.monitoring")
+        
+        # Log initialization
+        self.logger.info(f"MahiloTelemetry initialized with console exporters for service: {service_name}")
         
     def _setup_metrics(self):
         """Set up OpenTelemetry metrics"""
