@@ -23,6 +23,8 @@ class EventType(Enum):
     # Agent events
     AGENT_ACTIVATED = "agent_activated"
     AGENT_DEACTIVATED = "agent_deactivated"
+    AGENT_REGISTERED = "agent_registered"
+    AGENT_UNREGISTERED = "agent_unregistered"
     
     # Processing events
     PROCESSING_STARTED = "processing_started"

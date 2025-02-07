@@ -34,7 +34,7 @@ class AgentManager(AgentRegistry):
         self.agents[agent.name] = agent
         
         self.telemetry.record_event(
-            event_type=EventType.AGENT_ACTIVATED,
+            event_type=EventType.AGENT_REGISTERED,
             agent_id=agent.name,
             details={
                 "type": agent.TYPE,
@@ -62,7 +62,7 @@ class AgentManager(AgentRegistry):
         """Unregister the agent of the given name."""
         if agent_name in self.agents:
             self.telemetry.record_event(
-                event_type=EventType.AGENT_DEACTIVATED,
+                event_type=EventType.AGENT_UNREGISTERED,
                 agent_id=agent_name
             )
             del self.agents[agent_name]
