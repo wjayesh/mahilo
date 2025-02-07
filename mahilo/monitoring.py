@@ -57,20 +57,51 @@ class MahiloTelemetry:
             ResourceAttributes.SERVICE_NAME: service_name
         })
         
-        # Set up tracing with console exporter
+        # Store traces and metrics in memory
+        self.traces = []
+        self.metrics_data = {
+            "messages": 0,
+            "message_failures": 0,
+            "message_retries": 0,
+            "active_agents": 0,
+            "queue_size": 0,
+            "processing_times": []  # List to store processing times for histogram
+        }
+        
+        # Set up tracing with in-memory storage
         trace_provider = TracerProvider(resource=resource)
-        console_span_exporter = ConsoleSpanExporter()
-        trace_provider.add_span_processor(SimpleSpanProcessor(console_span_exporter))
+        class InMemorySpanExporter:
+            def __init__(self, traces_list):
+                self.traces = traces_list
+            
+            def export(self, spans):
+                for span in spans:
+                    self.traces.append({
+                        "name": span.name,
+                        "trace_id": format(span.context.trace_id, "032x"),
+                        "span_id": format(span.context.span_id, "016x"),
+                        "parent_id": format(span.parent.span_id, "016x") if span.parent else None,
+                        "start_time": span.start_time,
+                        "end_time": span.end_time,
+                        "attributes": dict(span.attributes),
+                        "status": span.status.status_code.name,
+                        "events": [{
+                            "name": event.name,
+                            "timestamp": event.timestamp,
+                            "attributes": dict(event.attributes)
+                        } for event in span.events]
+                    })
+                return True
+            
+            def shutdown(self):
+                pass
+        
+        trace_provider.add_span_processor(SimpleSpanProcessor(InMemorySpanExporter(self.traces)))
         trace.set_tracer_provider(trace_provider)
         self.tracer = trace.get_tracer(__name__)
         
-        # Set up metrics with console exporter
-        console_metric_exporter = ConsoleMetricExporter()
-        reader = PeriodicExportingMetricReader(
-            console_metric_exporter,
-            export_interval_millis=20000  # Export metrics every 20 seconds
-        )
-        meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+        # Set up metrics (now updating in-memory dict instead of console)
+        meter_provider = MeterProvider(resource=resource)
         metrics.set_meter_provider(meter_provider)
         self.meter = metrics.get_meter(__name__)
         
@@ -81,7 +112,7 @@ class MahiloTelemetry:
         self.logger = logging.getLogger("mahilo.monitoring")
         
         # Log initialization
-        self.logger.info(f"MahiloTelemetry initialized with console exporters for service: {service_name}")
+        self.logger.info(f"MahiloTelemetry initialized with in-memory storage for service: {service_name}")
         
     def _setup_metrics(self):
         """Set up OpenTelemetry metrics"""
@@ -110,19 +141,21 @@ class MahiloTelemetry:
             unit="1"
         )
         
+        # Queue size should be a gauge since it represents a current value
         self.queue_size = self.meter.create_observable_gauge(
             "mahilo.queue.size",
             description="Current queue size",
-            unit="1"
+            unit="1",
+            callbacks=[lambda result: result.observe(self.metrics_data["queue_size"])]
         )
         
-        # Agent metrics
+        # Agent metrics - this should stay as up_down_counter since we're tracking cumulative changes
         self.active_agents = self.meter.create_up_down_counter(
             "mahilo.agents.active",
             description="Number of active agents",
             unit="1"
         )
-    
+
     def record_event(self, 
                     event_type: EventType,
                     correlation_id: Optional[str] = None,
@@ -142,40 +175,47 @@ class MahiloTelemetry:
             f"mahilo.event.{event_type.value}",
             attributes=attributes
         ) as span:
-            # Record metrics based on event type
+            # Update metrics based on event type
             if event_type == EventType.MESSAGE_PROCESSED:
                 self.message_counter.add(1, attributes)
+                self.metrics_data["messages"] += 1
                 if "duration_ms" in details:
-                    self.message_processing_time.record(
-                        details["duration_ms"],
-                        attributes
-                    )
+                    duration = details["duration_ms"]
+                    self.message_processing_time.record(duration, attributes)
+                    self.metrics_data["processing_times"].append(duration)
                 span.set_status(Status(StatusCode.OK))
                 
             elif event_type == EventType.MESSAGE_FAILED:
                 self.message_failure_counter.add(1, attributes)
+                self.metrics_data["message_failures"] += 1
                 span.set_status(Status(StatusCode.ERROR))
                 if "error" in details:
                     span.record_exception(details["error"])
                 
             elif event_type == EventType.RETRY:
                 self.message_retry_counter.add(1, attributes)
+                self.metrics_data["message_retries"] += 1
                 
             elif event_type == EventType.QUEUE_LENGTH_CHANGED:
-                self.queue_size.set(details.get("queue_length", 0), attributes)
+                # For queue size, we just set the new value since it's a gauge
+                new_size = details.get("queue_length", 0)
+                self.metrics_data["queue_size"] = new_size
+                # The gauge will pick up this value via its callback
                 
             elif event_type == EventType.AGENT_ACTIVATED:
                 self.active_agents.add(1, attributes)
+                self.metrics_data["active_agents"] += 1
                 
             elif event_type == EventType.AGENT_DEACTIVATED:
                 self.active_agents.add(-1, attributes)
+                self.metrics_data["active_agents"] -= 1
             
             # Add event details to span
             for key, value in details.items():
                 span.set_attribute(key, str(value))
             
-            # Log the event
-            self.logger.info(json.dumps({
+            # Log the event (keeping minimal logging)
+            self.logger.debug(json.dumps({
                 "event_type": event_type.value,
                 "timestamp": datetime.fromtimestamp(time.time()).isoformat(),
                 "correlation_id": correlation_id,
@@ -193,11 +233,6 @@ class MahiloTelemetry:
                 "agent_id": agent_id
             }
         )
-    
-    def get_metrics(self) -> Dict:
-        """Get current metrics"""
-        # implement this at some point for the UI
-        return {}
 
     def mark_span_success(self, span: trace.Span) -> None:
         """Mark a span as successful"""
