@@ -1,6 +1,6 @@
 import os
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import Dict
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, Response
+from typing import Dict, Optional
 import uvicorn
 import asyncio
 import uuid
@@ -29,6 +29,42 @@ class ServerManager:
         install()  # This enables rich traceback formatting for exceptions
 
     def _setup_routes(self):
+        # Add metrics and traces endpoints
+        @self.app.get("/metrics")
+        async def get_metrics(agent_id: Optional[str] = None):
+            """Get system metrics, optionally filtered by agent"""
+            return self.agent_manager.get_agent_metrics(agent_id)
+            
+        @self.app.get("/traces")
+        async def get_traces(
+            limit: int = Query(100, description="Maximum number of traces to return"),
+            agent_id: Optional[str] = None
+        ):
+            """Get system traces, optionally filtered by agent"""
+            return self.agent_manager.telemetry.get_traces(limit=limit, agent_id=agent_id)
+
+        # Add Prometheus-format metrics endpoint
+        @self.app.get("/metrics/prometheus")
+        async def get_prometheus_metrics():
+            """Get metrics in Prometheus format"""
+            metrics = self.agent_manager.get_agent_metrics()
+            prometheus_lines = []
+            
+            # Convert our metrics to Prometheus format
+            for key, value in metrics.items():
+                if isinstance(value, dict):
+                    # Handle nested metrics like processing_time
+                    for subkey, subvalue in value.items():
+                        if isinstance(subvalue, (int, float)):
+                            prometheus_lines.append(f"mahilo_{key}_{subkey} {subvalue}")
+                else:
+                    prometheus_lines.append(f"mahilo_{key} {value}")
+            
+            return Response(
+                content="\n".join(prometheus_lines),
+                media_type="text/plain"
+            )
+
         @self.app.websocket("/ws/voice-stream/{agent_name}")
         async def voice_stream_endpoint(websocket: WebSocket, agent_name: str):
             await websocket.accept()
