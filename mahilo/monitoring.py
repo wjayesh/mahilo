@@ -110,8 +110,7 @@ class MahiloTelemetry:
             unit="1"
         )
         
-        # Queue metrics
-        self.queue_size = self.meter.create_up_down_counter(
+        self.queue_size = self.meter.create_observable_gauge(
             "mahilo.queue.size",
             description="Current queue size",
             unit="1"
@@ -163,10 +162,7 @@ class MahiloTelemetry:
                 self.message_retry_counter.add(1, attributes)
                 
             elif event_type == EventType.QUEUE_LENGTH_CHANGED:
-                self.queue_size.add(
-                    details.get("queue_length", 0) - details.get("previous_length", 0),
-                    attributes
-                )
+                self.queue_size.set(details.get("queue_length", 0), attributes)
                 
             elif event_type == EventType.AGENT_ACTIVATED:
                 self.active_agents.add(1, attributes)
@@ -199,9 +195,8 @@ class MahiloTelemetry:
         )
     
     def get_metrics(self) -> Dict:
-        """Get current metrics (Note: In OpenTelemetry, metrics are typically
-        collected by the backend, this is just for compatibility)"""
-        # This would typically be handled by your metrics backend
+        """Get current metrics"""
+        # implement this at some point for the UI
         return {}
 
     def mark_span_success(self, span: trace.Span) -> None:
