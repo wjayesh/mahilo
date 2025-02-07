@@ -112,9 +112,9 @@ class MahiloTelemetry:
     
     def record_event(self, 
                     event_type: EventType,
-                    correlation_id: Optional[str] = "",
-                    agent_id: Optional[str] = "",
-                    message_id: Optional[str] = "",
+                    correlation_id: Optional[str] = None,
+                    agent_id: Optional[str] = None,
+                    message_id: Optional[str] = None,
                     details: Dict = {}):
         """Record a monitoring event using OpenTelemetry"""
         attributes = {
