@@ -3,10 +3,12 @@ import time
 import json
 import jwt
 from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from enum import Enum
 
-from mahilo.monitoring import EventType
+if TYPE_CHECKING:
+    from mahilo.message_store import MessageStore
+from mahilo.monitoring import EventType, MahiloTelemetry
 
 class MessageType(Enum):
     DIRECT = "direct"
@@ -75,7 +77,7 @@ class MessageEnvelope:
 
 class MessageBroker:
     """Message broker for handling inter-agent communication"""
-    def __init__(self, secret_key: Optional[str] = None, store = None, telemetry = None):
+    def __init__(self, secret_key: Optional[str] = None, store: Optional["MessageStore"] = None, telemetry: Optional["MahiloTelemetry"] = None):
         self.secret_key = secret_key
         self.store = store
         self.telemetry = telemetry
