@@ -10,7 +10,9 @@ from rich.console import Console
 from rich.traceback import install
 import asyncio
 
+from mahilo.monitoring import EventType, MahiloTelemetry
 from mahilo.tools import get_chat_with_agent_tool
+from .message_protocol import MessageType
 
 console = Console()
 install()  #
@@ -46,14 +48,16 @@ class BaseAgent:
     TYPE: str = "Base"
     name: str = None
     _agent_manager: "AgentManager"
-    _queue: List[str]
     _session: Optional[Session] = None
     description: str = None
     short_description: str = None
     can_contact: List[str] = []
     _voice_connections: List[WebSocketClientProtocol] = []
+    _telemetry: Optional[MahiloTelemetry] = None
 
-    def __init__(self, type: str, name: str = None, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
+    def __init__(self, type: str, name: str = None, description: str = None, 
+                 can_contact: List[str] = [], short_description: str = None, 
+                 tools: List[Dict[str, Any]] = None):
         """Initialize a BaseAgent.
         
         Args:
@@ -65,13 +69,9 @@ class BaseAgent:
             tools (List[Dict], optional): List of tool configurations. Each tool must contain:
                 - "tool": The OpenAI tool configuration
                 - "function": A callable that returns str or List[str]
-                
-        Raises:
-            ToolFunctionError: If any tool configuration or function is invalid
         """
         self.TYPE = type
-        self.name = name or f"{type}_{id(self)}"  # Default to type_uniqueid if no name given
-        self._queue = []
+        self.name = name or f"{type}_{id(self)}"
         self.description = description
         self.can_contact = can_contact
         self.short_description = short_description
@@ -346,19 +346,33 @@ class BaseAgent:
         return PROMPT
 
     async def process_chat_message(self, message: str = None, websockets: List[WebSocket] = []) -> Dict[str, Any]:
-        """Process a message and return a response. 
+        """Process a message and return a response."""
+        if self._telemetry:
+            with self._telemetry.start_processing_span(
+                message_id=str(id(message)) if message else "no_message",
+                agent_id=self.name
+            ) as span:
+                try:
+                    result = await self._process_chat_message_internal(message, websockets)
+                    self._telemetry.mark_span_success(span)
+                    return result
+                except Exception as e:
+                    self._telemetry.mark_span_error(span, e)
+                    raise e
+        else:
+            return await self._process_chat_message_internal(message, websockets)
+
+    async def _process_chat_message_internal(self, message: str = None, websockets: List[WebSocket] = []) -> Dict[str, Any]:
+        """Internal method for processing chat messages.
         
         If message is not provided, it will use the last message from the queue.
 
-        This function should
-        - check if there are any messages in the queue
-        - append the queue message to the received message and then send it to the LLM model to generate a response
-        - add the received message to the session messages
-        - add the LLM's response to the session messages
-        - I don't add the queue message to the session because it's not a part of the conversation and is only a nudge
-        or a prompt. It will lead to messages that are eventually added to the session anyways so no info is lost.
-        - it should use the openai function calling API to generate a response
-
+        This function:
+        - Checks if there are any messages in the queue
+        - Appends the queue message to the received message and sends it to the LLM model
+        - Adds the received message to the session messages
+        - Adds the LLM's response to the session messages
+        - Uses the OpenAI function calling API to generate a response
         """
         # session messages will only have the user response and the agent responses
         # they will not have the queue messages or the other agent conversations.
@@ -483,128 +497,159 @@ class BaseAgent:
         }
 
 
-    async def process_queue_message(self, message: str = None, websockets: List[WebSocket] = []) -> None:
-        """Process a message from the queue. 
-        
-        If message is not provided, it will use the last message from the queue.
-
-        This function should
-        - check if there are any messages in the queue
-        - append the queue message to the received message and then send it to the LLM model to generate a response
-        - add the received message to the session messages
-        - add the LLM's response to the session messages
-        - I don't add the queue message to the session because it's not a part of the conversation and is only a nudge
-        or a prompt. It will lead to messages that are eventually added to the session anyways so no info is lost.
-        - it should use the openai function calling API to generate a response
-
-        """
-        session_messages = self._session.messages
-        current_messages = session_messages.copy()
-
-        if message:
-            queue_message = f"Pending messages: {message}"
-
-        print(f"Queue message for {self.TYPE}: {queue_message}")
-
-        session_messages.append({"content": queue_message, "role": "user"})
-        current_messages.append({"content": self.prompt_message(), "role": "system"})
-        current_messages.append({"content": queue_message, "role": "user"})
-
-        # Make the API call
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=current_messages,
-            tools=self.tools,
-            tool_choice="auto",
-        )
-
-        print("In queue fn:", response.choices[0].message)
-
-        # TODO support parallel function calling. we might want to add something like
-        # broadcast message to all agents, and see who responds first.
-        # if tools calls is not none, proceed
-        response_message = response.choices[0].message
-        tool_calls = response_message.tool_calls
-
-        # convert response_message ChatCompletionMessage to dict
-        response_message = response_message.model_dump()
-        current_messages.append(response_message)
-        session_messages.append(response_message)
-        while tool_calls:
-            available_functions = {
-                "chat_with_agent": get_chat_with_agent_tool(),
-                "contact_human": self.contact_human,
-                **self._custom_functions  # Add custom functions to available functions
-            }
-            
-            for tool_call in tool_calls:
-                function_name = tool_call.function.name
-                function_to_call = available_functions[function_name]
-                function_args = json.loads(tool_call.function.arguments)
+    async def process_queue_message(self, websockets: List[WebSocket] = []) -> None:
+        """Process messages from the broker queue."""
+        if self._telemetry:
+            with self._telemetry.start_processing_span(
+                message_id=str(id(websockets)),
+                agent_id=self.name
+            ) as span:
                 try:
-                    if function_name == "contact_human":
-                        function_response = await function_to_call(**function_args, websockets=websockets)
-                    else:
-                        function_response = function_to_call(**function_args)
-                        # Convert responses to appropriate string format
-                        if isinstance(function_response, dict):
-                            function_response = json.dumps(function_response)
-                        elif isinstance(function_response, list):
-                            function_response = [
-                                json.dumps(item) if isinstance(item, dict) else str(item)
-                                for item in function_response
-                            ]
+                    await self._process_queue_message_internal(websockets)
+                    self._telemetry.mark_span_success(span)
                 except Exception as e:
-                    print(f"Error calling function {function_name}: {e}")
-                    continue
+                    self._telemetry.mark_span_error(span, e)
+                    raise e
+        else:
+            await self._process_queue_message_internal(websockets)
 
-                func_resp = ""
-                # make one str from the function_response list of str
-                for resp in function_response:
-                    func_resp += resp
+    async def _process_queue_message_internal(self, websockets: List[WebSocket] = []) -> None:
+        """Internal method for processing queue messages."""
+        # Get pending messages from broker
+        pending_messages = self._agent_manager.message_broker.get_pending_messages(self.name)
+        
+        for envelope in pending_messages:
+            try:
+                # Verify message if signed
+                if self._agent_manager.message_broker.secret_key:
+                    if not envelope.verify(self._agent_manager.message_broker.secret_key):
+                        print(f"Warning: Message {envelope.message_id} failed signature verification")
+                        continue
 
-                # console log the function called and its response in suitable formatting
-                console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
-                console.print(f"[bold blue] Function response:[/bold blue] {func_resp}")
+                # Format message for processing
+                formatted_message = f"{envelope.sender}: {envelope.payload}"
+                
+                session_messages = self._session.messages
+                current_messages = session_messages.copy()
 
-                # append the response from the function to the messages
-                current_messages.append(
-                    {
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": function_name,
-                        "content": func_resp,
-                    }
+                queue_message = f"Pending messages: {formatted_message}"
+                print(f"Queue message for {self.TYPE}: {queue_message}")
+
+                session_messages.append({"content": queue_message, "role": "user"})
+                current_messages.append({"content": self.prompt_message(), "role": "system"})
+                current_messages.append({"content": queue_message, "role": "user"})
+
+                # Make the API call
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=current_messages,
+                    tools=self.tools,
+                    tool_choice="auto",
                 )
-                session_messages.append(
-                    {
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": function_name,
-                        "content": func_resp,
+
+                print("In queue fn:", response.choices[0].message)
+                
+                # Process response and tool calls as before...
+                response_message = response.choices[0].message
+                tool_calls = response_message.tool_calls
+
+                # convert response_message ChatCompletionMessage to dict
+                response_message = response_message.model_dump()
+                current_messages.append(response_message)
+                session_messages.append(response_message)
+
+                while tool_calls:
+                    available_functions = {
+                        "chat_with_agent": get_chat_with_agent_tool(),
+                        "contact_human": self.contact_human,
+                        **self._custom_functions  # Add custom functions to available functions
                     }
+                    
+                    for tool_call in tool_calls:
+                        function_name = tool_call.function.name
+                        function_to_call = available_functions[function_name]
+                        function_args = json.loads(tool_call.function.arguments)
+                        try:
+                            if function_name == "contact_human":
+                                function_response = await function_to_call(**function_args, websockets=websockets)
+                            else:
+                                function_response = function_to_call(**function_args)
+                                # Convert responses to appropriate string format
+                                if isinstance(function_response, dict):
+                                    function_response = json.dumps(function_response)
+                                elif isinstance(function_response, list):
+                                    function_response = [
+                                        json.dumps(item) if isinstance(item, dict) else str(item)
+                                        for item in function_response
+                                    ]
+                        except Exception as e:
+                            print(f"Error calling function {function_name}: {e}")
+                            continue
+
+                        func_resp = ""
+                        # make one str from the function_response list of str
+                        for resp in function_response:
+                            func_resp += resp
+
+                        # console log the function called and its response in suitable formatting
+                        console.print(f"[bold green] 🛠️  Function called:[/bold green] {function_name}")
+                        console.print(f"[bold blue] Function response:[/bold blue] {func_resp}")
+
+                        # append the response from the function to the messages
+                        current_messages.append(
+                            {
+                                "tool_call_id": tool_call.id,
+                                "role": "tool",
+                                "name": function_name,
+                                "content": func_resp,
+                            }
+                        )
+                        session_messages.append(
+                            {
+                                "tool_call_id": tool_call.id,
+                                "role": "tool",
+                                "name": function_name,
+                                "content": func_resp,
+                            }
+                        )
+
+                    response = await client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=current_messages,
+                        tools=self.tools,
+                        tool_choice="auto",
+                    )
+                    print("In queue fn:", response.choices[0].message)
+                    tool_calls = response.choices[0].message.tool_calls
+
+                    # convert response_message ChatCompletionMessage to dict
+                    response_message = response.choices[0].message.model_dump()
+                    session_messages.append(response_message)
+                    current_messages.append(response_message)         
+
+                # add the response to the session
+                self._session.update_and_replace_messages(session_messages)
+
+                # Acknowledge successful processing
+                self._agent_manager.message_broker.acknowledge_message(
+                    envelope.message_id, self.name
                 )
 
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=current_messages,
-                tools=self.tools,
-                tool_choice="auto",
-            )
-            print("In queue fn:", response.choices[0].message)
-            tool_calls = response.choices[0].message.tool_calls
-
-            # convert response_message ChatCompletionMessage to dict
-            response_message = response.choices[0].message.model_dump()
-            session_messages.append(response_message)
-            current_messages.append(response_message)         
-
-        # add the response to the session
-        self._session.update_and_replace_messages(session_messages)
-
-        # After processing, return the response and the list of all current agents that are active
-        activated_agents = [agent for agent in self._agent_manager.get_all_agents() if agent.is_active() and agent.name != self.name]
-        print(f"Activated agents: {[agent.name for agent in activated_agents]}")
+            except Exception as e:
+                print(f"Error processing message {envelope.message_id}: {e}")
+                # Handle failure and retry if needed
+                should_retry = self._agent_manager.message_broker.handle_failure(
+                    envelope.message_id, self.name
+                )
+                if not should_retry:
+                    print(f"Max retries exceeded for message {envelope.message_id}")
+                    # Could send error message back to sender here
+                    self._agent_manager.send_message_to_agent(
+                        sender=self.name,
+                        recipient=envelope.sender,
+                        message=f"Failed to process message after max retries: {e}",
+                        message_type=MessageType.ERROR
+                    )
 
     async def _send_session_update(self, openai_ws: WebSocketClientProtocol) -> None:
         """Send the session update to the OpenAI WebSocket."""
@@ -736,10 +781,6 @@ class BaseAgent:
         except Exception as e:
             print(f"Error in send_to_client: {e}")
 
-    def add_message_to_queue(self, message: str, sender: str) -> None:
-        """Add a message to the agent's queue."""
-        self._queue.append(f"{sender}: {message}")
-
     def is_active(self) -> bool:
         """Check if the agent is active."""
         # if session is not None, then the agent is active
@@ -748,25 +789,35 @@ class BaseAgent:
     def activate(self, server_id: str = None, dependencies: Any = None) -> None:
         """Activate the agent."""
         self._session = Session(self.TYPE, server_id)
-
-    def chat_with_agent(self, agent_name: str, question: str) -> str:
-        """Chat with the agent of the given name."""
-        agent = self._agent_manager.get_agent(agent_name)
-        if not agent:
-            return f"Error: Agent with name '{agent_name}' not found"
-        
-        # if agent is not active, activate it
-        if not agent.is_active():
-            agent.activate()
-        # add the question to the agent's queue
-        agent.add_message_to_queue(question, self.name)
-
-        return (
-            f"I have put the question '{question}' in the queue for the agent named {agent_name}. "
-            "You will hear back soon."
-        )
+        if self._telemetry:
+            self._telemetry.record_event(
+                event_type=EventType.AGENT_ACTIVATED,
+                agent_id=self.name,
+                details={"server_id": server_id}
+            )
+    
+    def deactivate(self) -> None:
+        """Deactivate the agent."""
+        if self._telemetry:
+            self._telemetry.record_event(
+                event_type=EventType.AGENT_DEACTIVATED,
+                agent_id=self.name
+            )
+        self._session = None
     
     async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> str:
+        """Contact the human user."""
+        if self._telemetry:
+            self._telemetry.record_event(
+                event_type=EventType.MESSAGE_SENT,
+                agent_id=self.name,
+                details={
+                    "recipient": "human",
+                    "message": message,
+                    "type": "voice" if self._voice_connections else "text"
+                }
+            )
+            
         # Prioritize voice connections if available
         if self._voice_connections:
             for openai_ws in self._voice_connections:

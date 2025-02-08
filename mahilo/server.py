@@ -142,15 +142,20 @@ class ServerManager:
     async def _handle_inter_agent_communication(self):
         while True:
             for agent in self.agent_manager.get_all_agents():
-                if agent.is_active() and agent._queue:
-                    message = agent._queue.pop(0)
-                    websockets = []
-                    try:
-                        websockets = self.websocket_connections[agent.name].values()
-                    except KeyError:
-                        self.console.print(f"[bold yellow]⚠️  No WebSocket connections found for agent:[/bold yellow] [green]{agent.name}[/green]")
-                    list_websockets = [ws for ws in websockets]
-                    await agent.process_queue_message(message, websockets=list_websockets)
+                if agent.is_active():
+                    # Get pending messages from broker for this agent
+                    pending_messages = self.agent_manager.message_broker.get_pending_messages(agent.name)
+                    if pending_messages:
+                        websockets = []
+                        try:
+                            websockets = self.websocket_connections[agent.name].values()
+                        except KeyError:
+                            # no websockets means no one is listening to this agent. this is fine
+                            # but the contact human function will not work.
+                            # don't wanna log this because it's inside a continuous loop
+                            pass
+                        list_websockets = [ws for ws in websockets]
+                        await agent.process_queue_message(websockets=list_websockets)
             await asyncio.sleep(1)
     
     def run(self, host: str = "0.0.0.0", port: int = 8000):
