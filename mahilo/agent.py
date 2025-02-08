@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
+import asyncio
 
 from mahilo.tools import get_chat_with_agent_tool
 
@@ -50,6 +51,7 @@ class BaseAgent:
     description: str = None
     short_description: str = None
     can_contact: List[str] = []
+    _voice_connections: List[WebSocketClientProtocol] = []
 
     def __init__(self, type: str, name: str = None, description: str = None, can_contact: List[str] = [], short_description: str = None, tools: List[Dict[str, Any]] = None):
         """Initialize a BaseAgent.
@@ -106,20 +108,21 @@ class BaseAgent:
     @property
     def tools_for_realtime(self) -> List[Dict[str, Any]]:
         """Return the tools that this agent has for realtime."""
+        try:
+            available_agents = self.get_contactable_agents_with_description()
+        except AttributeError as e:
+            console.print("[bold red] ⚠️  Agent not registered with AgentManager:[/bold red]")
+            available_agents = {}
         TOOLS = [
             {
                 "name": "chat_with_agent",
                 "type": "function",
                 "description": (
-                    "Chat with an agent of a given type. You are already given "
-                    "the list of agent types you can talk to. Determine what agent type "
+                    "Chat with an agent by their name. You are already given "
+                    "the list of agent names you can talk to. Determine what agent "
                     "would be best suited to answer a question and also what question should be asked. "
-                    "The question will be sent as is to the agent's user so frame it in a way that some human can read "
-                    "and answer directly. It won't be answered by the agent, it will be answered by the user."
-                    "You should also proactively share any information with the agent that might be relevant "
-                    "to the conversation you are having with them. This will help the other agent be in the loop. "
-                    f"The agent types available to you are police_proxy and medical_proxy. "
-                    "If you think you can answer the question yourself, DON'T ask another agent."
+                    f"The agent names available to you are {available_agents}. "
+                    "Don't use any other agent names. You also shouldn't send a chat message to yourself."
                 ),
                 "parameters": {
                     "type": "object",
@@ -139,6 +142,22 @@ class BaseAgent:
                     },
                     "required": ["agent_name", "your_name", "question"],
                 }
+            },
+            {
+                "name": "contact_human",
+                "type": "function",
+                "description": (
+                    "Contact your human. Use this function whenever you want to send some information to your human or get new information from your human."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "The message to send to the human.",
+                        },
+                    },
+                },
             },
         ]
         return TOOLS
@@ -595,7 +614,7 @@ class BaseAgent:
             "session": {
                 "modalities": ["text", "audio"],
                 "instructions": self.prompt_message(),
-                "voice": "alloy",
+                "voice": "ash",
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "turn_detection": {
@@ -604,7 +623,7 @@ class BaseAgent:
                     "prefix_padding_ms": 300,
                     "silence_duration_ms": 200
                 },
-                "tools": self.tools_for_realtime,
+                "tools": [tool for tool in self.tools_for_realtime if tool["name"] != "contact_human"],
                 "tool_choice": "auto",
                 "temperature": 0.8,
             }
@@ -622,7 +641,6 @@ class BaseAgent:
                         "audio": message['media']['payload']
                     }
                     await openai_ws.send(json.dumps(audio_append))
-                # TODO: Handle other event types if needed
         except WebSocketDisconnect:
             print("Client disconnected.")
             if openai_ws.open:
@@ -635,7 +653,10 @@ class BaseAgent:
         }
         try:
             async for openai_message in openai_ws:
+                # Add keepalive heartbeat
+                await asyncio.sleep(0.1)  # Prevent event loop starvation
                 response = json.loads(openai_message)
+                print("Received message from OpenAI:", response)
                 function_call_args = {}
                 if response['type'] == 'session.updated':
                     print("Session updated successfully:", response)
@@ -689,7 +710,7 @@ class BaseAgent:
                             "response": {
                                 "modalities": ["text"],
                                 "instructions": func_resp,
-                                "voice": "alloy",
+                                "voice": "ash",
                                 "output_audio_format": "pcm16",
                                 "tools": self.tools_for_realtime,
                                 "tool_choice": "required",
@@ -697,6 +718,21 @@ class BaseAgent:
                             }
                         }
                         await openai_ws.send(json.dumps(response_create))
+
+                if response['type'] == 'conversation.item.input_audio_transcription.completed':
+                    # get the transcription from the response
+                    transcription = response['transcript']
+                    console.print(f"[bold blue] User input transcription:[/bold blue] {transcription}")
+                    # add the transcription to the session
+                    self._session.add_message(transcription, "user")
+
+                if response['type'] == 'response.audio_transcript.done':
+                    # get the transcript from the response
+                    transcript = response['transcript']
+                    console.print(f"[bold green] Assistant audio transcript:[/bold green] {transcript}")
+                    # add the transcript to the session
+                    self._session.add_message(transcript, "assistant")
+                    
         except Exception as e:
             print(f"Error in send_to_client: {e}")
 
@@ -730,11 +766,29 @@ class BaseAgent:
             "You will hear back soon."
         )
     
-    async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> None:
-        """Respond to the human."""
-        for ws in websockets:
-            await ws.send_text(message)
-        return f"I have sent your message to the human as I don't have the information in context."
+    async def contact_human(self, message: str, websockets: List[WebSocket] = []) -> str:
+        # Prioritize voice connections if available
+        if self._voice_connections:
+            for openai_ws in self._voice_connections:
+                response_create = {
+                    "type": "response.create",
+                    "response": {
+                        "modalities": ["audio"],
+                        "instructions": "Please say the following message to the human: " + message,
+                        "voice": "ash",
+                        "output_audio_format": "pcm16",
+                        "tools": self.tools_for_realtime,
+                        "tool_choice": "required",
+                        "temperature": 0.7,
+                    }
+                }
+                await openai_ws.send(json.dumps(response_create))
+            return f"Sent voice message to human: {message}"
+        else:
+            # Fallback to text
+            for ws in websockets:
+                await ws.send_text(message)
+            return f"Sent text message to human: {message}"
 
     def _validate_tool_function(self, func: Callable, tool_name: str) -> None:
         """Validate that a tool function meets the required signature.

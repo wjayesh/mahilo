@@ -19,9 +19,7 @@ class ServerManager:
         self.app = FastAPI()
         self.agent_manager = agent_manager
         self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", None)
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", None)
-        self.key = os.getenv("AZURE_OPENAI_KEY", None)
+        self.key = os.getenv("OPENAI_API_KEY", None)
         self.token_provider = None
 
         self.agent_manager.populate_can_contact_for_agents()
@@ -44,8 +42,8 @@ class ServerManager:
 
             self.console.print(f"[bold blue]🎙️ New voice stream connection[/bold blue] for agent: [green]{agent_name}[/green]")
 
-            if not all([self.endpoint, self.deployment, self.key]):
-                await websocket.send_text("Azure OpenAI credentials not configured. Voice streaming is unavailable.")
+            if not self.key:
+                await websocket.send_text("OpenAI credentials not configured. Voice streaming is unavailable.")
                 await websocket.close(1008)  # Using 1008 (Policy Violation) status code
                 return
             
@@ -58,15 +56,31 @@ class ServerManager:
             try:
                 headers = {}
                 if self.key is not None:
-                    headers = { "api-key": self.key }
+                    headers = {
+                        "Authorization": f"Bearer {self.key}",
+                        "OpenAI-Beta": "realtime=v1"
+                    }
                 # add params to the url without using urllib
-                ws_url = f"{self.endpoint}/openai/realtime?api-version=2024-10-01-preview&deployment={self.deployment}"
-                async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
-                    await agent._send_session_update(openai_ws)
-                    await asyncio.gather(
-                        agent._receive_from_client(websocket, openai_ws),
-                        agent._send_to_client(websocket, openai_ws)
-                    )
+                ws_url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17"
+                
+                try:
+                    async with websockets.connect(ws_url, extra_headers=headers) as openai_ws:
+                        # Add the OpenAI WS to agent's voice connections
+                        agent._voice_connections.append(openai_ws)
+                        try:
+                            await agent._send_session_update(openai_ws)
+                            while True:
+                                await asyncio.gather(
+                                    agent._receive_from_client(websocket, openai_ws),
+                                    agent._send_to_client(websocket, openai_ws)
+                                )
+                        finally:
+                            # Remove connection when done
+                            if openai_ws in agent._voice_connections:
+                                agent._voice_connections.remove(openai_ws)
+                except Exception as e:
+                    self.console.print(f"[bold red]Error with OpenAI WS connection: {e}[/bold red]")
+                    await asyncio.sleep(1)
 
             except WebSocketDisconnect:
                 self.console.print(f"[bold yellow]⚠️  WebSocket disconnected[/bold yellow] for agent: [green]{agent_name}[/green]")

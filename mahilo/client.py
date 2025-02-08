@@ -5,6 +5,7 @@ from typing import Optional
 import base64
 import json
 import threading
+import time
 
 # Optional import for voice features
 try:
@@ -28,6 +29,12 @@ class Client:
             if not PYAUDIO_AVAILABLE:
                 raise ImportError("PyAudio is required for voice features. Learn how to install it for your OS here: https://pypi.org/project/PyAudio/.")
             self.audio = pyaudio.PyAudio()
+            
+            # Add device check
+            try:
+                default_input = self.audio.get_default_input_device_info()
+            except OSError:
+                raise RuntimeError("No audio input device found. Check your microphone configuration.")
 
     async def connect(self):
         if self.voice:
@@ -63,7 +70,9 @@ class Client:
     async def send_message(self, message: str):
         if self.websocket:
             if self.voice:
-                await self._record_and_send_audio()
+                # Start recording task if not already recording
+                if not self.is_recording:
+                    asyncio.create_task(self._record_and_send_audio())
             else:
                 await self.websocket.send(json.dumps(message))
         else:
@@ -72,21 +81,34 @@ class Client:
     async def _record_and_send_audio(self):
         if not self.voice:
             raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
-            
-        print("Recording... Press Enter to stop.")
-        self.is_recording = True
-        self.stop_recording.clear()
-        self.stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
         
-        def input_thread():
-            input()
-            self.stop_recording.set()
-
-        threading.Thread(target=input_thread, daemon=True).start()
-
+        print("Recording started... (press Ctrl+C to stop recording)")
+        self.is_recording = True
+        loop = asyncio.get_event_loop()
+        
+        # Use a queue for audio data
+        self.audio_queue = asyncio.Queue()
+        
+        # Define callback for continuous recording
+        def callback(in_data, frame_count, time_info, status):
+            loop.call_soon_threadsafe(self.audio_queue.put_nowait, in_data)
+            return (None, pyaudio.paContinue)
+        
+        # Open stream with callback
+        self.stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=24000,
+            input=True,
+            frames_per_buffer=1024,
+            stream_callback=callback,
+            start=True
+        )
+        
         try:
-            while not self.stop_recording.is_set():
-                data = self.stream.read(1024)
+            while self.is_recording:
+                # Get audio data from queue
+                data = await self.audio_queue.get()
                 audio_payload = base64.b64encode(data).decode('utf-8')
                 await self.websocket.send(json.dumps({
                     "event": "media",
@@ -94,21 +116,36 @@ class Client:
                         "payload": audio_payload
                     }
                 }))
-                await asyncio.sleep(0.01)  # Small delay to prevent flooding
+        except Exception as e:
+            print("Recording error:", e)
         finally:
             self.is_recording = False
             self.stream.stop_stream()
             self.stream.close()
+            if hasattr(self, 'output_stream'):
+                self.output_stream.close()
+                del self.output_stream
             print("Recording stopped.")
 
     def _play_audio(self, audio_data):
         if not self.voice:
             raise RuntimeError("Voice features are not enabled. Initialize the client with voice=True to use voice features.")
             
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
-        stream.write(audio_data)
-        stream.stop_stream()
-        stream.close()
+        # Create persistent output stream if it doesn't exist
+        if not hasattr(self, 'output_stream'):
+            self.output_stream = self.audio.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=24000,
+                output=True,
+                frames_per_buffer=1024
+            )
+        
+        # Write audio data to stream
+        self.output_stream.write(audio_data)
+        
+        # Add small delay to prevent buffer underrun
+        time.sleep(0.01)  # Adjust based on testing
 
     async def close(self):
         if self.websocket:
