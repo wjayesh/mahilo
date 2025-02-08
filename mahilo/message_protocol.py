@@ -86,36 +86,37 @@ class MessageBroker:
     def send_message(self, message: MessageEnvelope) -> None:
         """Queue a message for delivery"""
         if self.store:
+            previous_length = len(self.store.get_pending_messages(message.recipient))
             self.store.save_message(message)
+            new_length = len(self.store.get_pending_messages(message.recipient))
             
-        if self.telemetry:
-            self.telemetry.record_event(
-                event_type=EventType.MESSAGE_SENT,
-                correlation_id=message.correlation_id,
-                agent_id=message.sender,
-                message_id=message.message_id,
-                details={
-                    "recipient": message.recipient,
-                    "message_type": message.message_type.value
-                }
-            )
+            if self.telemetry:
+                self.telemetry.record_event(
+                    event_type=EventType.MESSAGE_SENT,
+                    correlation_id=message.correlation_id,
+                    agent_id=message.sender,
+                    message_id=message.message_id,
+                    details={
+                        "recipient": message.recipient,
+                        "message_type": message.message_type.value
+                    }
+                )
+                
+                # Record queue length change when message is added
+                self.telemetry.record_event(
+                    event_type=EventType.QUEUE_LENGTH_CHANGED,
+                    agent_id=message.recipient,
+                    details={
+                        "queue_length": new_length,
+                        "previous_length": previous_length
+                    }
+                )
         
     def get_pending_messages(self, recipient: str) -> List[MessageEnvelope]:
         """Get pending messages for a recipient"""
         messages = []
         if self.store:
             messages = self.store.get_pending_messages(recipient)
-            
-        if self.telemetry and messages:
-            self.telemetry.record_event(
-                event_type=EventType.QUEUE_LENGTH_CHANGED,
-                agent_id=recipient,
-                details={
-                    "queue_length": len(messages),
-                    "previous_length": 0  # We don't track previous length currently
-                }
-            )
-            
         return messages
         
     def acknowledge_message(self, message_id: str, recipient: str) -> None:
@@ -123,7 +124,9 @@ class MessageBroker:
         if self.store:
             message = self.store.get_message(message_id)
             if message:
+                previous_length = len(self.store.get_pending_messages(recipient))
                 self.store.update_message_state(message_id, "processed")
+                new_length = len(self.store.get_pending_messages(recipient))
                 
                 if self.telemetry:
                     self.telemetry.record_event(
@@ -134,6 +137,16 @@ class MessageBroker:
                         details={
                             "sender": message.sender,
                             "message_type": message.message_type.value
+                        }
+                    )
+                    
+                    # Record queue length change when message is processed
+                    self.telemetry.record_event(
+                        event_type=EventType.QUEUE_LENGTH_CHANGED,
+                        agent_id=recipient,
+                        details={
+                            "queue_length": new_length,
+                            "previous_length": previous_length
                         }
                     )
                 
