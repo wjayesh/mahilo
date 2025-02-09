@@ -4,6 +4,7 @@ from typing import Dict, Optional
 import uvicorn
 import asyncio
 import uuid
+from datetime import datetime
 
 import websockets
 
@@ -64,6 +65,81 @@ class ServerManager:
                 content="\n".join(prometheus_lines),
                 media_type="text/plain"
             )
+
+        @self.app.get("/messages")
+        async def get_messages(
+            sender: Optional[str] = None,
+            recipient: Optional[str] = None,
+            start_time: Optional[float] = Query(None, description="Start timestamp in Unix epoch format"),
+            end_time: Optional[float] = Query(None, description="End timestamp in Unix epoch format"),
+            limit: int = Query(100, description="Maximum number of messages to return")
+        ):
+            """Get message history with optional filters.
+            
+            - If only sender is specified: returns messages sent BY that agent
+            - If only recipient is specified: returns messages sent TO that agent
+            - If both are specified: returns messages from sender TO recipient
+            - If neither is specified: returns recent messages across all agents
+            """
+            # Convert timestamps to datetime if provided
+            start_dt = datetime.fromtimestamp(start_time) if start_time else None
+            end_dt = datetime.fromtimestamp(end_time) if end_time else None
+            
+            # Get message store from agent manager's message broker
+            message_store = self.agent_manager.message_broker.store
+            
+            # Get messages using the flexible query function
+            messages = message_store.get_messages(
+                sender=sender,
+                recipient=recipient,
+                start_time=start_dt,
+                end_time=end_dt,
+                limit=limit
+            )
+            
+            # Convert messages to dict for JSON serialization
+            return [{
+                "message_id": msg.message_id,
+                "sender": msg.sender,
+                "recipient": msg.recipient,
+                "message_type": msg.message_type.value,
+                "payload": msg.payload,
+                "timestamp": msg.timestamp,
+                "correlation_id": msg.correlation_id,
+                "reply_to": msg.reply_to
+            } for msg in messages]
+
+        @self.app.get("/conversations/{agent1}/{agent2}")
+        async def get_conversation(
+            agent1: str,
+            agent2: str,
+            start_time: Optional[float] = Query(None, description="Start timestamp in Unix epoch format"),
+            end_time: Optional[float] = Query(None, description="End timestamp in Unix epoch format"),
+            limit: int = Query(50, description="Maximum number of messages to return")
+        ):
+            """Get conversation history between two specific agents (messages in both directions)"""
+            start_dt = datetime.fromtimestamp(start_time) if start_time else None
+            end_dt = datetime.fromtimestamp(end_time) if end_time else None
+            
+            message_store = self.agent_manager.message_broker.store
+            messages = message_store.get_conversation_history(
+                agent1=agent1,
+                agent2=agent2,
+                start_time=start_dt,
+                end_time=end_dt,
+                limit=limit
+            )
+            
+            return [{
+                "message_id": msg.message_id,
+                "sender": msg.sender,
+                "recipient": msg.recipient,
+                "message_type": msg.message_type.value,
+                "payload": msg.payload,
+                "timestamp": msg.timestamp,
+                "correlation_id": msg.correlation_id,
+                "reply_to": msg.reply_to
+            } for msg in messages]
 
         @self.app.websocket("/ws/voice-stream/{agent_name}")
         async def voice_stream_endpoint(websocket: WebSocket, agent_name: str):

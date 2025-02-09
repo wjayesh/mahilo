@@ -29,13 +29,6 @@ class MessageStore(ABC):
         pass
     
     @abstractmethod
-    def get_message_history(self, agent_id: str, 
-                          start_time: Optional[datetime] = None,
-                          end_time: Optional[datetime] = None) -> List[MessageEnvelope]:
-        """Get message history for an agent"""
-        pass
-    
-    @abstractmethod
     def update_message_state(self, message_id: str, state: str, 
                            retry_count: Optional[int] = None) -> None:
         """Update message state and retry information"""
@@ -49,6 +42,38 @@ class MessageStore(ABC):
     @abstractmethod
     def get_retry_count(self, message_id: str) -> int:
         """Get the current retry count for a message"""
+        pass
+
+    @abstractmethod
+    def get_messages(self, 
+                    sender: Optional[str] = None,
+                    recipient: Optional[str] = None,
+                    start_time: Optional[datetime] = None,
+                    end_time: Optional[datetime] = None,
+                    limit: Optional[int] = None) -> List[MessageEnvelope]:
+        """Get messages based on flexible criteria.
+        
+        This function can:
+        a) Get messages sent BY a specific agent (only sender specified)
+        b) Get messages sent TO a specific agent (only recipient specified)
+        c) Get messages from a specific sender TO a specific recipient (both specified)
+        d) Get recent messages across all agents (neither specified)
+        
+        Args:
+            sender: Optional sender to filter by
+            recipient: Optional recipient to filter by
+            start_time: Optional start time for time range filter
+            end_time: Optional end time for time range filter
+            limit: Optional limit on number of messages returned
+        """
+        pass
+
+    @abstractmethod
+    def get_conversation_history(self, agent1: str, agent2: str,
+                               start_time: Optional[datetime] = None,
+                               end_time: Optional[datetime] = None,
+                               limit: Optional[int] = None) -> List[MessageEnvelope]:
+        """Get conversation history between two agents (messages in both directions)"""
         pass
 
 class SQLiteMessageStore(MessageStore):
@@ -119,28 +144,6 @@ class SQLiteMessageStore(MessageStore):
             ).fetchall()
             return [self._row_to_envelope(row) for row in rows]
     
-    def get_message_history(self, agent_id: str, 
-                          start_time: Optional[datetime] = None,
-                          end_time: Optional[datetime] = None) -> List[MessageEnvelope]:
-        query = """
-            SELECT * FROM messages 
-            WHERE (sender = ? OR recipient = ?)
-        """
-        params = [agent_id, agent_id]
-        
-        if start_time:
-            query += " AND timestamp >= ?"
-            params.append(start_time.timestamp())
-        if end_time:
-            query += " AND timestamp <= ?"
-            params.append(end_time.timestamp())
-            
-        query += " ORDER BY timestamp DESC"
-        
-        with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(query, params).fetchall()
-            return [self._row_to_envelope(row) for row in rows]
-    
     def update_message_state(self, message_id: str, state: str, 
                            retry_count: Optional[int] = None) -> None:
         query = """
@@ -190,3 +193,86 @@ class SQLiteMessageStore(MessageStore):
             reply_to=row[7],
             signature=row[8]
         ) 
+
+    def get_messages(self,
+                    sender: Optional[str] = None,
+                    recipient: Optional[str] = None,
+                    start_time: Optional[datetime] = None,
+                    end_time: Optional[datetime] = None,
+                    limit: Optional[int] = None) -> List[MessageEnvelope]:
+        """Get messages based on flexible criteria."""
+        query_parts = ["SELECT * FROM messages"]
+        params = []
+        where_clauses = []
+        
+        # Handle sender/recipient filtering
+        if sender and recipient:
+            where_clauses.append("sender = ? AND recipient = ?")
+            params.extend([sender, recipient])
+        elif sender:
+            where_clauses.append("sender = ?")
+            params.append(sender)
+        elif recipient:
+            where_clauses.append("recipient = ?")
+            params.append(recipient)
+        
+        # Add time range filters
+        if start_time:
+            where_clauses.append("timestamp >= ?")
+            params.append(start_time.timestamp())
+        if end_time:
+            where_clauses.append("timestamp <= ?")
+            params.append(end_time.timestamp())
+        
+        # Combine where clauses if any exist
+        if where_clauses:
+            query_parts.append("WHERE " + " AND ".join(where_clauses))
+        
+        # Add ordering
+        query_parts.append("ORDER BY timestamp DESC")
+        
+        # Add limit if specified
+        if limit is not None:
+            query_parts.append("LIMIT ?")
+            params.append(limit)
+        
+        query = " ".join(query_parts)
+        
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [self._row_to_envelope(row) for row in rows]
+
+    def get_conversation_history(self, agent1: str, agent2: str,
+                               start_time: Optional[datetime] = None,
+                               end_time: Optional[datetime] = None,
+                               limit: Optional[int] = None) -> List[MessageEnvelope]:
+        """Get conversation history between two agents (messages in both directions)"""
+        query_parts = ["SELECT * FROM messages"]
+        params = []
+        
+        # Get messages in both directions between the agents
+        where_clause = "((sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?))"
+        params.extend([agent1, agent2, agent2, agent1])
+        query_parts.append("WHERE " + where_clause)
+        
+        # Add time range filters
+        if start_time:
+            query_parts.append("AND timestamp >= ?")
+            params.append(start_time.timestamp())
+        if end_time:
+            query_parts.append("AND timestamp <= ?")
+            params.append(end_time.timestamp())
+            
+        # Add ordering
+        query_parts.append("ORDER BY timestamp DESC")
+        
+        # Add limit if specified
+        if limit is not None:
+            query_parts.append("LIMIT ?")
+            params.append(limit)
+        
+        query = " ".join(query_parts)
+        
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [self._row_to_envelope(row) for row in rows] 
