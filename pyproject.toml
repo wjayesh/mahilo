@@ -4,21 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mahilo"
-version = "0.4.2"
-description = " A flexible framework for creating multi-agent systems that can each interact with humans while sharing relevant context internally."
+version = "0.5.0"
+description = "A multi-agent framework that allows you to create new agents or register agents from other frameworks in a team, where they can talk to each other and share information, all under human supervision."
 authors = [{name = "Jayesh Sharma", email = "wjayesh@outlook.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "openai>=1.55.0,<2.0.0",
-    "fastapi>=0.109.2,<0.115.6",
-    "uvicorn",
+    "openai>=1.59.8,<2.0.0",
+    "fastapi>=0.115.6",
+    "uvicorn==0.30.6",
     "websockets==13.0.1",
-    "python-dotenv",
+    "python-dotenv==1.0.1",
     "pydantic",
-    "rich",
-    "langgraph>=0.2.60,<0.3.0",
-    "pydantic-ai>=0.0.15,<0.1.0",
+    "rich==13.9.3",
+    "langgraph==0.2.60",
+    "pydantic-ai==0.0.15",
+    "PyJWT==2.8.0",
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation>=0.42b0",
+    "opentelemetry-semantic-conventions>=0.42b0",
 ]
 
 [project.optional-dependencies]
