@@ -4,7 +4,6 @@ import os
 from typing import TYPE_CHECKING, Any, List, Dict, Optional, Callable, get_type_hints
 
 from fastapi import WebSocket, WebSocketDisconnect
-from openai import AsyncOpenAI
 from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
@@ -12,21 +11,12 @@ import asyncio
 
 from mahilo.monitoring import EventType, MahiloTelemetry
 from mahilo.tools import get_chat_with_agent_tool
+from mahilo.llm_config import llm_config
 from .message_protocol import MessageType
 
 console = Console()
 install()  #
 
-# Initialize the OpenAI client
-try:
-    client = AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY")
-    )
-except Exception as e:
-    console.print("[bold red] ⛔  Error initializing OpenAI client:[/bold red]", str(e))
-    console.print("[bold red]Please ensure OPENAI_API_KEY environment variable is set correctly[/bold red]")
-    import sys
-    sys.exit(1)
 
 if TYPE_CHECKING:
     from .agent_manager import AgentManager
@@ -396,9 +386,8 @@ class BaseAgent:
         current_messages.append({"content": self.prompt_message(), "role": "system"})
         current_messages.append({"content": message_full, "role": "user"})
 
-        # Make the API call
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Make the API call using LiteLLM
+        response = await llm_config.chat_completion(
             messages=current_messages,
             tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
             tool_choice="auto",
@@ -471,8 +460,7 @@ class BaseAgent:
                     }
                 )
 
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = await llm_config.chat_completion(
                 messages=current_messages,
                 tools=[tool for tool in self.tools if tool["function"]["name"] != "contact_human"],
                 tool_choice="auto",
@@ -539,9 +527,8 @@ class BaseAgent:
                 current_messages.append({"content": self.prompt_message(), "role": "system"})
                 current_messages.append({"content": queue_message, "role": "user"})
 
-                # Make the API call
-                response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
+                # Make the API call using LiteLLM
+                response = await llm_config.chat_completion(
                     messages=current_messages,
                     tools=self.tools,
                     tool_choice="auto",
@@ -613,8 +600,7 @@ class BaseAgent:
                             }
                         )
 
-                    response = await client.chat.completions.create(
-                        model="gpt-4o-mini",
+                    response = await llm_config.chat_completion(
                         messages=current_messages,
                         tools=self.tools,
                         tool_choice="auto",
