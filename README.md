@@ -116,6 +116,7 @@ Above is an architecture diagram that shows the different components of the syst
 - CLI client for easy testing and interaction
 - Multiple users can connect to the same agent. In emergency situation scenarios, this means multiple police officers can connect to the same dispatcher and receive updates from the dispatcher.
 - Agents are only activated when they are needed.
+- **Multi-provider LLM support** through [LiteLLM](https://github.com/BerriAI/litellm), allowing you to use models from OpenAI, Anthropic, Azure, and more with a simple environment variable.
 
 
 ![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](https://github.com/wjayesh/mahilo/blob/main/assets/health_emergency1.png?raw=true)
@@ -210,6 +211,7 @@ More information on the features can be found in the [Detailed Features](#detail
 - [Flexible communication patterns: peer-to-peer and hierarchical (or centralized)](#flexible-communication-patterns-peer-to-peer-and-hierarchical-or-centralized)
 - [Flexible agent manager for handling multiple agent types](#flexible-agent-manager-for-handling-multiple-agent-names)
 - [Session management for persistent conversations](#session-management-for-persistent-conversations)
+- [Multi-provider LLM support](#multi-provider-llm-support)
 
 ### Human-in-the-Loop
 - The human-in-the-loop is implemented by having the human client connect to each agent in the system.
@@ -241,6 +243,11 @@ The BaseAgent class is designed to be subclassed for defining new agents. It com
 ### Session management for persistent conversations
 - The `Session` class is designed to manage conversation sessions for each agent. It stores the conversation history in a file for persistence.
 - The messages from the queue or the shared context are not stored to avoid duplication and redundancy.
+
+### Multi-provider LLM support
+- Mahilo uses [LiteLLM](https://github.com/BerriAI/litellm) to support a wide range of LLM providers and models.
+- You can easily switch between different models and providers by setting the `MAHILO_LLM_MODEL` environment variable in the format `provider/model`.
+- For detailed documentation, see [LLM Integration](docs/llm_integration.md).
 
 ## Contributing
 
