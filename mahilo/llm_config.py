@@ -15,16 +15,14 @@ class LLMConfig:
     def __init__(self):
         """Initialize the LLM configuration.
         
-        Reads environment variables to determine which model and provider to use.
+        Reads environment variables to determine which model to use.
         Falls back to defaults if not specified.
         """
-        # Default model configuration
-        self.default_model = "gpt-4o-mini"
-        self.default_provider = "openai"
+        # Default model configuration (includes provider)
+        self.default_model = "openai/gpt-4o-mini"
         
         # Read from environment variables
         self.model = os.getenv("MAHILO_LLM_MODEL", self.default_model)
-        self.provider = os.getenv("MAHILO_LLM_PROVIDER", self.default_provider)
         
         # API keys and endpoints
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -39,7 +37,7 @@ class LLMConfig:
         self._log_config()
     
     def _setup_litellm(self):
-        """Configure LiteLLM with the appropriate provider and API keys."""
+        """Configure LiteLLM with the appropriate API keys."""
         # Set the default API keys for different providers
         if self.openai_api_key:
             litellm.openai_key = self.openai_api_key
@@ -54,7 +52,6 @@ class LLMConfig:
     def _log_config(self):
         """Log the current LLM configuration."""
         console.print(f"[bold blue]🤖 LLM Configuration:[/bold blue]")
-        console.print(f"  [green]▪[/green] [cyan]Provider:[/cyan] [dim]{self.provider}[/dim]")
         console.print(f"  [green]▪[/green] [cyan]Model:[/cyan] [dim]{self.model}[/dim]")
     
     async def chat_completion(self, 
