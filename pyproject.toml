@@ -11,6 +11,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "openai>=1.59.8,<2.0.0",
+    "litellm>=1.0.0",
     "fastapi>=0.115.6",
     "uvicorn==0.30.6",
     "websockets==13.0.1",
