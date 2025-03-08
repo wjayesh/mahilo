@@ -16,6 +16,7 @@ dependencies = [
     "websockets==13.0.1",
     "python-dotenv==1.0.1",
     "pydantic",
+    "litellm>=1.30.0",
     "rich==13.9.3",
     "langgraph==0.2.60",
     "pydantic-ai==0.0.15",
