@@ -8,6 +8,7 @@ from websockets import WebSocketClientProtocol
 from rich.console import Console
 from rich.traceback import install
 import asyncio
+import inspect
 
 from mahilo.monitoring import EventType, MahiloTelemetry
 from mahilo.tools import get_chat_with_agent_tool
@@ -417,10 +418,31 @@ class BaseAgent:
                 function_to_call = available_functions[function_name]
                 function_args = json.loads(tool_call.function.arguments)
                 try:
+                    # Always await contact_human
                     if function_name == "contact_human":
                         function_response = await function_to_call(**function_args, websockets=websockets)
                     else:
-                        function_response = function_to_call(**function_args)
+                        # First try: Execute function normally
+                        try:
+                            function_response = function_to_call(**function_args)
+                        except TypeError as e:
+                            # Check if the error suggests the function should be awaited
+                            if "coroutine" in str(e) or "awaitable" in str(e):
+                                # Second try: Execute with await if it's a coroutine
+                                if inspect.iscoroutinefunction(function_to_call):
+                                    function_response = await function_to_call(**function_args)
+                                else:
+                                    # If it's not a coroutine function but returned a coroutine
+                                    coroutine_result = function_to_call(**function_args)
+                                    if inspect.iscoroutine(coroutine_result):
+                                        function_response = await coroutine_result
+                                    else:
+                                        # Re-raise the original error if we can't handle it
+                                        raise
+                            else:
+                                # Re-raise if it's not a coroutine-related error
+                                raise
+                        
                         # Convert responses to appropriate string format
                         if isinstance(function_response, dict):
                             function_response = json.dumps(function_response)
@@ -557,10 +579,31 @@ class BaseAgent:
                         function_to_call = available_functions[function_name]
                         function_args = json.loads(tool_call.function.arguments)
                         try:
+                            # Always await contact_human
                             if function_name == "contact_human":
                                 function_response = await function_to_call(**function_args, websockets=websockets)
                             else:
-                                function_response = function_to_call(**function_args)
+                                # First try: Execute function normally
+                                try:
+                                    function_response = function_to_call(**function_args)
+                                except TypeError as e:
+                                    # Check if the error suggests the function should be awaited
+                                    if "coroutine" in str(e) or "awaitable" in str(e):
+                                        # Second try: Execute with await if it's a coroutine
+                                        if inspect.iscoroutinefunction(function_to_call):
+                                            function_response = await function_to_call(**function_args)
+                                        else:
+                                            # If it's not a coroutine function but returned a coroutine
+                                            coroutine_result = function_to_call(**function_args)
+                                            if inspect.iscoroutine(coroutine_result):
+                                                function_response = await coroutine_result
+                                            else:
+                                                # Re-raise the original error if we can't handle it
+                                                raise
+                                    else:
+                                        # Re-raise if it's not a coroutine-related error
+                                        raise
+                                
                                 # Convert responses to appropriate string format
                                 if isinstance(function_response, dict):
                                     function_response = json.dumps(function_response)
