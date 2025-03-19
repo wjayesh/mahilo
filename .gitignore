@@ -18,3 +18,6 @@ env/
 # Other common files to ignore
 .DS_Store
 *.log
+
+# DB Files
+*.db
