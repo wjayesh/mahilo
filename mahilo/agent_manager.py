@@ -1,9 +1,10 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 from .agent import BaseAgent
 from .registry import GlobalRegistry, AgentRegistry
 from .message_protocol import MessageBroker, MessageEnvelope, MessageType
 from .message_store import SQLiteMessageStore
 from .monitoring import EventType, MahiloTelemetry
+from .policy import Policy, PolicyManager, MessageValidator, PolicyViolation, PolicyType, create_default_policies
 
 
 class AgentManager(AgentRegistry):
@@ -13,15 +14,38 @@ class AgentManager(AgentRegistry):
     for managing agents and their communication.
     """
     def __init__(self, secret_key: str = None, db_path: str = "messages.db", 
-                 service_name: str = "mahilo"):
+                 service_name: str = "mahilo", validator_model_name: Optional[str] = None):
+        """Initialize an AgentManager.
+        
+        Args:
+            secret_key: Optional secret key for message signing
+            db_path: Path to the SQLite database file
+            service_name: Name of the service for telemetry
+            validator_model_name: Optional model name for validator.
+                       If not provided, will try to use MAHILO_POLICY_MODEL or MAHILO_LLM_MODEL env var.
+                       If env vars are not set, will use the default model from llm_config.
+        """
         self.agents: Dict[str, BaseAgent] = {}
         self.store = SQLiteMessageStore(db_path)
         self.telemetry = MahiloTelemetry(service_name)
+        
+        # Set up policy manager and validator
+        self.policy_manager = PolicyManager(validator_model_name)
+        
+        # Add default policies
+        for policy in create_default_policies(validator_model_name):
+            self.policy_manager.add_policy(policy)
+            
+        self.validator = MessageValidator(self.policy_manager)
+        
+        # Create message broker with validator
         self.message_broker = MessageBroker(
             secret_key=secret_key,
             store=self.store,
-            telemetry=self.telemetry
+            telemetry=self.telemetry,
+            validator=self.validator
         )
+        
         # Register self with global registry
         GlobalRegistry.set_agent_registry(self)
 
@@ -77,7 +101,7 @@ class AgentManager(AgentRegistry):
         """Return a list of all registered agent types with their descriptions."""
         return {agent.name: agent.short_description for agent in self.agents.values()}
     
-    def send_message_to_agent(self, sender: str, recipient: str, 
+    async def send_message_to_agent(self, sender: str, recipient: str, 
                             message: str, message_type: MessageType = MessageType.DIRECT,
                             correlation_id: Optional[str] = None) -> None:
         """Send a message to an agent."""
@@ -89,7 +113,7 @@ class AgentManager(AgentRegistry):
             correlation_id=correlation_id,
             secret_key=self.message_broker.secret_key
         )
-        self.message_broker.send_message(envelope)
+        await self.message_broker.send_message(envelope)
     
     def get_agent_messages(self, agent_name: str, num_messages: int = 7) -> str:
         """Return messages from all agents' sessions except the current agent."""
@@ -124,3 +148,120 @@ class AgentManager(AgentRegistry):
         if self.telemetry:
             return self.telemetry.get_metrics(agent_id)
         return {}
+        
+    # Policy management methods
+    
+    def add_policy(self, policy: Policy) -> None:
+        """Add a policy to the policy manager.
+        
+        Args:
+            policy: The policy to add
+        """
+        self.policy_manager.add_policy(policy)
+        
+    def remove_policy(self, policy_name: str) -> None:
+        """Remove a policy from the policy manager.
+        
+        Args:
+            policy_name: Name of the policy to remove
+        """
+        self.policy_manager.remove_policy(policy_name)
+        
+    def get_policy(self, policy_name: str) -> Optional[Policy]:
+        """Get a policy by name.
+        
+        Args:
+            policy_name: Name of the policy to get
+            
+        Returns:
+            The policy if found, None otherwise
+        """
+        return self.policy_manager.get_policy(policy_name)
+        
+    def enable_policy(self, policy_name: str) -> None:
+        """Enable a policy by name.
+        
+        Args:
+            policy_name: Name of the policy to enable
+        """
+        self.policy_manager.enable_policy(policy_name)
+        
+    def disable_policy(self, policy_name: str) -> None:
+        """Disable a policy by name.
+        
+        Args:
+            policy_name: Name of the policy to disable
+        """
+        self.policy_manager.disable_policy(policy_name)
+        
+    def get_policies(self) -> List[Policy]:
+        """Get all policies.
+        
+        Returns:
+            List of all policies
+        """
+        return self.policy_manager.policies
+        
+    def get_policy_violations(self, 
+                            limit: int = 100, 
+                            policy_name: Optional[str] = None) -> List[PolicyViolation]:
+        """Get recent policy violations.
+        
+        Args:
+            limit: Maximum number of violations to return
+            policy_name: Optional name of policy to filter by
+            
+        Returns:
+            List of policy violations
+        """
+        violations = self.policy_manager.violation_history
+        
+        if policy_name:
+            violations = [v for v in violations if v.policy_name == policy_name]
+            
+        # Sort by timestamp (newest first) and limit
+        return sorted(violations, key=lambda v: -v.timestamp)[:limit]
+        
+    def add_heuristic_policy(self, 
+                           name: str, 
+                           description: str, 
+                           policy_function: Callable,
+                           priority: int = 0) -> None:
+        """Add a heuristic policy.
+        
+        Args:
+            name: Unique name for the policy
+            description: Human-readable description of what the policy does
+            policy_function: Callable that evaluates messages
+            priority: Priority of the policy (higher values = higher priority)
+        """
+        policy = Policy(
+            name=name,
+            description=description,
+            policy_type=PolicyType.HEURISTIC,
+            policy_content=policy_function,
+            priority=priority
+        )
+        self.add_policy(policy)
+        
+    def add_natural_language_policy(self, 
+                                  name: str, 
+                                  description: str, 
+                                  policy_text: str,
+                                  priority: int = 0) -> None:
+        """Add a natural language policy.
+        
+        Args:
+            name: Unique name for the policy
+            description: Human-readable description of what the policy does
+            policy_text: Natural language description of the policy
+            priority: Priority of the policy (higher values = higher priority)
+        """
+        policy = Policy(
+            name=name,
+            description=description,
+            policy_type=PolicyType.NATURAL_LANGUAGE,
+            policy_content=policy_text,
+            priority=priority
+        )
+        self.add_policy(policy)
