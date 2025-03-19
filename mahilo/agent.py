@@ -673,7 +673,7 @@ class BaseAgent:
                 if not should_retry:
                     print(f"Max retries exceeded for message {envelope.message_id}")
                     # Could send error message back to sender here
-                    self._agent_manager.send_message_to_agent(
+                    await self._agent_manager.send_message_to_agent(
                         sender=self.name,
                         recipient=envelope.sender,
                         message=f"Failed to process message after max retries: {e}",

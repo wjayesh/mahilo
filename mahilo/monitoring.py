@@ -21,6 +21,7 @@ class EventType(Enum):
     MESSAGE_RECEIVED = "message_received"
     MESSAGE_PROCESSED = "message_processed"
     MESSAGE_FAILED = "message_failed"
+    MESSAGE_VALIDATION_FAILED = "message_validation_failed"
     
     # Agent events
     AGENT_ACTIVATED = "agent_activated"
