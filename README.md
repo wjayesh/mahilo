@@ -117,6 +117,7 @@ Above is an architecture diagram that shows the different components of the syst
 - Multiple users can connect to the same agent. In emergency situation scenarios, this means multiple police officers can connect to the same dispatcher and receive updates from the dispatcher.
 - Agents are only activated when they are needed.
 - **Multi-provider LLM support** through [LiteLLM](https://github.com/BerriAI/litellm), allowing you to use models from OpenAI, Anthropic, Azure, and more with a simple environment variable.
+- **Message validation policies** to prevent harmful content, repetitive loops, and ensure high-quality agent communications.
 
 
 ![A three-agent system where a medical advisor is talking about a public health emergency and the agent decides to call the logistics coordinator and the public communication director agents to coordinate the response to the emergency](https://github.com/wjayesh/mahilo/blob/main/assets/health_emergency1.png?raw=true)
@@ -212,6 +213,7 @@ More information on the features can be found in the [Detailed Features](#detail
 - [Flexible agent manager for handling multiple agent types](#flexible-agent-manager-for-handling-multiple-agent-names)
 - [Session management for persistent conversations](#session-management-for-persistent-conversations)
 - [Multi-provider LLM support](#multi-provider-llm-support)
+- [Policy Validation for Inter-Agent Communication](#policy-validation-for-inter-agent-communication)
 
 ### Human-in-the-Loop
 - The human-in-the-loop is implemented by having the human client connect to each agent in the system.
@@ -248,6 +250,20 @@ The BaseAgent class is designed to be subclassed for defining new agents. It com
 - Mahilo uses [LiteLLM](https://github.com/BerriAI/litellm) to support a wide range of LLM providers and models.
 - You can easily switch between different models and providers by setting the `MAHILO_LLM_MODEL` environment variable in the format `provider/model`.
 - For detailed documentation, see [LLM Integration](docs/llm_integration.md).
+
+### Policy Validation for Inter-Agent Communication
+- Enforces rules on messages exchanged between agents through a validation system
+- Prevents common issues like repetitive conversation loops, off-topic discussions, and harmful content
+- Supports two types of policies:
+  - **Heuristic Policies**: Rule-based, programmatic checks (e.g., message length, repetition detection)
+  - **Natural Language Policies**: Defined in plain English and evaluated using LLMs
+- Comes with built-in policies:
+  - Anti-Loop Policy: Prevents repetitive patterns using similarity detection
+  - Message Length Policy: Ensures messages are neither too short nor too long 
+  - Relevance Policy: Ensures messages stay on topic
+  - Toxicity Policy: Prevents harmful or inappropriate content
+- Easily extendable with custom policies for specific use cases
+- For detailed documentation, see [Policy Validation](docs/policy_validation.md).
 
 ## Contributing
 
