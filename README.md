@@ -265,6 +265,70 @@ The BaseAgent class is designed to be subclassed for defining new agents. It com
 - Easily extendable with custom policies for specific use cases
 - For detailed documentation, see [Policy Validation](docs/policy_validation.md).
 
+## FAQ
+
+### General
+
+**What is mahilo?**
+mahilo is a multi-agent framework that lets you create agents or register agents from other frameworks (like LangGraph) in a team. Agents communicate via WebSocket, share context, and operate under human supervision.
+
+**How is mahilo different from LangGraph or CrewAI?**
+mahilo focuses on inter-agent communication with human-in-the-loop oversight. Unlike single-framework solutions, mahilo lets you compose agents from different frameworks (LangGraph, custom agents, etc.) into one team.
+
+**What license does mahilo use?**
+mahilo is open-source under the MIT License.
+
+### Setup & Configuration
+
+**How do I install mahilo?**
+```bash
+pip install mahilo
+```
+For voice features:
+```bash
+pip install mahilo[voice]
+# Also install PyAudio for your system
+```
+
+**Which LLM providers are supported?**
+mahilo uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, supporting 100+ LLM providers including OpenAI, Anthropic, Google, Ollama, and more. Set `MAHILO_LLM_MODEL=provider/model` to switch.
+
+**Can I use local models?**
+Yes. Set `MAHILO_LLM_MODEL` to a local model endpoint (e.g., `ollama/llama3`) and mahilo will route requests accordingly.
+
+### Agent Development
+
+**How do I define a custom agent?**
+Extend `BaseAgent` with a type, description, and tools. The agent manager handles routing and communication.
+
+**Can I register agents from other frameworks?**
+Yes. mahilo provides integrations like `LangGraphAgent` to register LangGraph agents alongside custom agents in the same team.
+
+**How do agents communicate?**
+Agents use `chat_with_an_agent()` to send messages. The `AgentManager` enforces the `can_contact` list to control which agents can talk to each other.
+
+### Human-in-the-Loop
+
+**How does human supervision work?**
+mahilo supports human-in-the-loop policies that validate inter-agent communication. You can define heuristic policies (rule-based) or natural language policies (LLM-evaluated) to prevent loops, off-topic discussions, and harmful content.
+
+**What built-in policies are available?**
+- Anti-Loop: Prevents repetitive conversation patterns
+- Message Length: Ensures messages are within bounds
+- Relevance: Keeps conversations on topic
+- Toxicity: Filters harmful content
+
+### Troubleshooting
+
+**WebSocket connection fails**
+Ensure the server is running (`server.run()`) and the client connects to the correct URL (`mahilo connect --url http://localhost:8000`). Check that no firewall blocks port 8000.
+
+**Agent not responding**
+Verify the agent is activated with `agent.activate()` and that `MAHILO_LLM_MODEL` is set to a valid provider/model combination.
+
+**Voice features not working**
+Install PyAudio for your OS (`brew install portaudio` on macOS, `apt-get install portaudio19-dev` on Linux) and install mahilo with voice extras: `pip install mahilo[voice]`.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
